@@ -1,0 +1,10 @@
+[Event "Chess960WZ"]
+[Date "2026.04.22"]
+[White "Player1"]
+[Black "Player2"]
+[Result "0-1"]
+[Variant "Chess960"]
+[SetUp "1"]
+[FEN "bbrkrnnq/pppppppp/8/8/8/8/PPPPPPPP/BBRKRNNQ w KQkq - 0 1"]
+
+0-1

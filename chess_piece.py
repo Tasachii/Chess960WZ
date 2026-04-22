@@ -1,241 +1,216 @@
 import pygame
-from constants import *
+from constants import WHITE, BLACK, CREAM_WHITE, GOLD
 
 
 class ChessPiece:
+    """Base class for all chess pieces."""
     def __init__(self, piece_type, color, position, board):
         self.piece_type = piece_type
         self.color = color
-        self.position = position
+        self.position = list(position)  # [col, row]
         self.board = board
         self.has_moved = False
         self.load_image()
 
     def load_image(self):
-        # Use color names for image loading
         color_name = "white" if self.color == WHITE else "black"
-
         try:
-            img_name = f"images/{color_name} {self.piece_type}.png"
-            self.image = pygame.image.load(img_name)
-
-            # Size images for the board
-            if self.piece_type == 'pawn':
-                self.image = pygame.transform.scale(self.image, (65, 65))
-            else:
-                self.image = pygame.transform.scale(self.image, (70, 70))
-
-            # Create small version for captured pieces
+            img = pygame.image.load(f"images/{color_name} {self.piece_type}.png")
+            size = 65 if self.piece_type == 'pawn' else 70
+            self.image = pygame.transform.scale(img, (size, size))
             self.small_image = pygame.transform.scale(self.image, (40, 40))
-        except pygame.error as e:
-            print(f"Error loading image: {e}")
-            # Create placeholder if image fails to load
-            self.image = self.create_placeholder_image()
+        except pygame.error:
+            self.image = self._placeholder()
             self.small_image = pygame.transform.scale(self.image, (40, 40))
 
-    def create_placeholder_image(self):
-        # Create simple colored rectangle as placeholder
-        size = 70
-        surface = pygame.Surface((size, size), pygame.SRCALPHA)
+    def _placeholder(self):
+        surf = pygame.Surface((70, 70), pygame.SRCALPHA)
+        bg = CREAM_WHITE if self.color == WHITE else (50, 50, 50)
+        pygame.draw.rect(surf, bg, (0, 0, 70, 70))
+        try:
+            font = pygame.font.Font('freesansbold.ttf', 20)
+        except:
+            font = pygame.font.SysFont('Arial', 20)
+        txt_color = (50, 50, 50) if self.color == WHITE else CREAM_WHITE
+        txt = font.render(self.piece_type[0].upper(), True, txt_color)
+        surf.blit(txt, txt.get_rect(center=(35, 35)))
+        pygame.draw.rect(surf, GOLD, (0, 0, 70, 70), 2)
+        return surf
 
-        # Fill with color
-        bg_color = CREAM_WHITE if self.color == WHITE else (50, 50, 50)
-        pygame.draw.rect(surface, bg_color, (0, 0, size, size))
+    def get_pos(self):
+        return tuple(self.position)
 
-        # Draw piece type text
-        font = pygame.font.Font('freesansbold.ttf', 20)
-        text = font.render(self.piece_type[0].upper(), True,
-                          (50, 50, 50) if self.color == WHITE else CREAM_WHITE)
-        text_rect = text.get_rect(center=(size // 2, size // 2))
-        surface.blit(text, text_rect)
-
-        # Draw border
-        pygame.draw.rect(surface, GOLD, (0, 0, size, size), 2)
-
-        return surface
-
-    def draw(self, screen):
-        square_size = self.board.square_size
-        start_pos = self.board.start_pos
-
-        x, y = self.position
-        screen_x = start_pos + x * square_size
-        screen_y = start_pos + y * square_size
-
-        # Center the piece
-        offset_x = (square_size - self.image.get_width()) // 2
-        offset_y = (square_size - self.image.get_height()) // 2
-
-        screen.blit(self.image, (screen_x + offset_x, screen_y + offset_y))
+    def move(self, new_pos):
+        self.position = list(new_pos)
+        self.has_moved = True
 
     def get_valid_moves(self):
-        if self.piece_type == 'pawn':
-            return self._check_pawn_moves()
-        elif self.piece_type == 'rook':
-            return self._check_rook_moves()
-        elif self.piece_type == 'knight':
-            return self._check_knight_moves()
-        elif self.piece_type == 'bishop':
-            return self._check_bishop_moves()
-        elif self.piece_type == 'queen':
-            return self._check_queen_moves()
-        elif self.piece_type == 'king':
-            moves, castling = self._check_king_moves()
-            return moves
+        # subclasses override this
+        return []
 
-    def _check_pawn_moves(self):
-        # Logic for pawn moves
+    def _in_bounds(self, col, row):
+        return 0 <= col <= 7 and 0 <= row <= 7
+
+    def __repr__(self):
+        return f"{self.color[0].upper()}{self.piece_type[:2]}@{tuple(self.position)}"
+
+
+class Pawn(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('pawn', color, position, board)
+
+    def get_valid_moves(self):
         moves = []
-        x, y = self.position
+        col, row = self.position
+        direction = 1 if self.color == WHITE else -1
+        all_pos = self.board.get_all_piece_positions()
+        opp_pos = self.board.get_opponent_positions(self.color)
 
-        if self.color == WHITE:
-            # Forward moves
-            if (x, y + 1) not in self.board.get_all_piece_positions() and y < 7:
-                moves.append((x, y + 1))
-                # First move can be two squares
-                if not self.has_moved and (x, y + 2) not in self.board.get_all_piece_positions():
-                    moves.append((x, y + 2))
+        # forward 1
+        if self._in_bounds(col, row + direction) and (col, row + direction) not in all_pos:
+            moves.append((col, row + direction))
+            # forward 2 from start
+            if not self.has_moved and (col, row + 2 * direction) not in all_pos:
+                moves.append((col, row + 2 * direction))
 
-            # Capture moves
-            for dx in [-1, 1]:
-                capture_pos = (x + dx, y + 1)
-                if capture_pos in self.board.get_opponent_positions(self.color):
-                    moves.append(capture_pos)
+        # captures
+        for dc in [-1, 1]:
+            cap = (col + dc, row + direction)
+            if cap in opp_pos:
+                moves.append(cap)
 
-            # En passant
-            if (x + 1, y + 1) == self.board.get_en_passant_square(BLACK):
-                moves.append((x + 1, y + 1))
-            if (x - 1, y + 1) == self.board.get_en_passant_square(BLACK):
-                moves.append((x - 1, y + 1))
-        else:
-            # Black pawn moves (reverse direction)
-            # Forward moves
-            if (x, y - 1) not in self.board.get_all_piece_positions() and y > 0:
-                moves.append((x, y - 1))
-                # First move can be two squares
-                if not self.has_moved and (x, y - 2) not in self.board.get_all_piece_positions():
-                    moves.append((x, y - 2))
-
-            # Capture moves
-            for dx in [-1, 1]:
-                capture_pos = (x + dx, y - 1)
-                if capture_pos in self.board.get_opponent_positions(self.color):
-                    moves.append(capture_pos)
-
-            # En passant
-            if (x + 1, y - 1) == self.board.get_en_passant_square(WHITE):
-                moves.append((x + 1, y - 1))
-            if (x - 1, y - 1) == self.board.get_en_passant_square(WHITE):
-                moves.append((x - 1, y - 1))
+        # en passant
+        ep_color = BLACK if self.color == WHITE else WHITE
+        ep_sq = self.board.get_en_passant_square(ep_color)
+        for dc in [-1, 1]:
+            if (col + dc, row + direction) == ep_sq:
+                moves.append((col + dc, row + direction))
 
         return moves
 
-    def _check_rook_moves(self):
-        # Logic for rook moves
+
+class Rook(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('rook', color, position, board)
+
+    def get_valid_moves(self):
+        return self._slide([(0,1),(0,-1),(1,0),(-1,0)])
+
+    def _slide(self, directions):
         moves = []
-        x, y = self.position
-
-        # Check 4 directions (up, down, left, right)
-        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-
-        for dx, dy in directions:
-            for dist in range(1, 8):  # Check all squares in a direction
-                new_pos = (x + dist * dx, y + dist * dy)
-                # Check if position is on the board
-                if not (0 <= new_pos[0] <= 7 and 0 <= new_pos[1] <= 7):
+        col, row = self.position
+        ally_pos = self.board.get_piece_positions(self.color)
+        opp_pos = self.board.get_opponent_positions(self.color)
+        for dc, dr in directions:
+            for d in range(1, 8):
+                nc, nr = col + dc*d, row + dr*d
+                if not self._in_bounds(nc, nr):
                     break
-
-                # Check if position has a friendly piece
-                if new_pos in self.board.get_piece_positions(self.color):
+                pos = (nc, nr)
+                if pos in ally_pos:
                     break
-
-                moves.append(new_pos)
-
-                # If we hit an enemy piece, stop after adding this move
-                if new_pos in self.board.get_opponent_positions(self.color):
+                moves.append(pos)
+                if pos in opp_pos:
                     break
-
         return moves
 
-    def _check_knight_moves(self):
-        # Logic for knight moves
-        moves = []
-        x, y = self.position
 
-        # Knights move in L-shape
-        possible_moves = [
-            (x + 1, y + 2), (x + 2, y + 1), (x + 2, y - 1), (x + 1, y - 2),
-            (x - 1, y - 2), (x - 2, y - 1), (x - 2, y + 1), (x - 1, y + 2)
+class Knight(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('knight', color, position, board)
+
+    def get_valid_moves(self):
+        col, row = self.position
+        ally_pos = self.board.get_piece_positions(self.color)
+        jumps = [(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]
+        return [
+            (col+dc, row+dr)
+            for dc, dr in jumps
+            if self._in_bounds(col+dc, row+dr) and (col+dc, row+dr) not in ally_pos
         ]
 
-        for new_pos in possible_moves:
-            # Check if position is on the board
-            if not (0 <= new_pos[0] <= 7 and 0 <= new_pos[1] <= 7):
-                continue
 
-            # Check if position has a friendly piece
-            if new_pos in self.board.get_piece_positions(self.color):
-                continue
+class Bishop(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('bishop', color, position, board)
 
-            moves.append(new_pos)
+    def get_valid_moves(self):
+        return self._slide([(1,1),(1,-1),(-1,1),(-1,-1)])
 
+    def _slide(self, directions):
+        moves = []
+        col, row = self.position
+        ally_pos = self.board.get_piece_positions(self.color)
+        opp_pos = self.board.get_opponent_positions(self.color)
+        for dc, dr in directions:
+            for d in range(1, 8):
+                nc, nr = col + dc*d, row + dr*d
+                if not self._in_bounds(nc, nr):
+                    break
+                pos = (nc, nr)
+                if pos in ally_pos:
+                    break
+                moves.append(pos)
+                if pos in opp_pos:
+                    break
         return moves
 
-    def _check_bishop_moves(self):
-        # Logic for bishop moves
+
+class Queen(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('queen', color, position, board)
+
+    def get_valid_moves(self):
+        return self._slide([(0,1),(0,-1),(1,0),(-1,0),(1,1),(1,-1),(-1,1),(-1,-1)])
+
+    def _slide(self, directions):
         moves = []
-        x, y = self.position
-
-        # Check 4 diagonal directions
-        for dx, dy in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
-            for dist in range(1, 8):
-                new_pos = (x + dist * dx, y + dist * dy)
-                # Check if position is on the board
-                if not (0 <= new_pos[0] <= 7 and 0 <= new_pos[1] <= 7):
+        col, row = self.position
+        ally_pos = self.board.get_piece_positions(self.color)
+        opp_pos = self.board.get_opponent_positions(self.color)
+        for dc, dr in directions:
+            for d in range(1, 8):
+                nc, nr = col + dc*d, row + dr*d
+                if not self._in_bounds(nc, nr):
                     break
-
-                # Check if position has a friendly piece
-                if new_pos in self.board.get_piece_positions(self.color):
+                pos = (nc, nr)
+                if pos in ally_pos:
                     break
-
-                moves.append(new_pos)
-
-                # If we hit an enemy piece, stop after adding this move
-                if new_pos in self.board.get_opponent_positions(self.color):
+                moves.append(pos)
+                if pos in opp_pos:
                     break
-
         return moves
 
-    def _check_queen_moves(self):
-        # Queen combines rook and bishop moves
-        return self._check_rook_moves() + self._check_bishop_moves()
 
-    def _check_king_moves(self):
-        # Logic for king moves
+class King(ChessPiece):
+    def __init__(self, color, position, board):
+        super().__init__('king', color, position, board)
+
+    def get_valid_moves(self):
+        col, row = self.position
+        ally_pos = self.board.get_piece_positions(self.color)
         moves = []
-        castling_moves = []
-        x, y = self.position
-
-        # Regular moves in all 8 directions
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if dx == 0 and dy == 0:
-                    continue  # Skip current position
-
-                new_pos = (x + dx, y + dy)
-                # Check if position is on the board
-                if not (0 <= new_pos[0] <= 7 and 0 <= new_pos[1] <= 7):
+        for dc in [-1, 0, 1]:
+            for dr in [-1, 0, 1]:
+                if dc == 0 and dr == 0:
                     continue
+                pos = (col+dc, row+dr)
+                if self._in_bounds(*pos) and pos not in ally_pos:
+                    moves.append(pos)
+        return moves
 
-                # Check if position has a friendly piece
-                if new_pos in self.board.get_piece_positions(self.color):
-                    continue
 
-                moves.append(new_pos)
-
-        # Castling logic is handled by the board class
-        return moves, castling_moves
-
-    def move(self, new_position):
-        self.position = new_position
-        self.has_moved = True
+def make_piece(piece_type, color, position, board):
+    """Factory — returns the right subclass."""
+    mapping = {
+        'pawn': Pawn,
+        'rook': Rook,
+        'knight': Knight,
+        'bishop': Bishop,
+        'queen': Queen,
+        'king': King,
+    }
+    cls = mapping.get(piece_type)
+    if cls:
+        return cls(color, position, board)
+    raise ValueError(f"Unknown piece type: {piece_type}")

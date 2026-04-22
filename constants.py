@@ -1,4 +1,4 @@
-# Screen dimensions and settings
+# Screen
 WIDTH = 1200
 HEIGHT = 900
 FPS = 90
@@ -17,6 +17,10 @@ GOLD = 'gold'
 WOOD_BROWN = (160, 115, 65)
 WOOD_DARK = (120, 85, 45)
 
+BOARD_LIGHT = (238, 238, 210)
+BOARD_DARK = (118, 150, 86)
+BOARD_HIGHLIGHT = (246, 246, 130)
+
 GREEN = 'green'
 DARK_GREEN = (0, 153, 76)
 
@@ -28,7 +32,6 @@ LIGHT_BLUE = (173, 216, 230)
 LIGHT_BLUE_HIGHLIGHT = (193, 226, 240)
 DARK_BLUE = 'dark blue'
 
-# Add missing colors
 PURPLE = (128, 0, 128)
 ORANGE = (255, 165, 0)
 
@@ -40,14 +43,13 @@ PROMOTION_PIECES = ['bishop', 'knight', 'rook', 'queen']
 MENU = 0
 PLAYING = 1
 TIME_SELECT = 2
-CHART_VIEWER = 6  # game state for viewing charts
+CHART_VIEWER = 6
 
 # Time controls
-BULLET = 0  # 1 min
-BLITZ = 1   # 3 min
-RAPID = 2   # 10 min
-CLASSICAL = 3  # 30 min
+BULLET = 0
+BLITZ = 1
+RAPID = 2
+CLASSICAL = 3
 
-# Time in seconds
-TIME_CONTROLS = [60, 180, 600, 1800]  # 1, 3, 10, 30 minutes
+TIME_CONTROLS = [60, 180, 600, 1800]
 TIME_NAMES = ["Bullet", "Blitz", "Rapid", "Classical"]
