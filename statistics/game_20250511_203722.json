@@ -1,0 +1,69 @@
+{
+  "start_time": 1746970630.659416,
+  "end_time": 1746970642.871853,
+  "total_moves": 7,
+  "white_moves": 4,
+  "black_moves": 3,
+  "captured_pieces": {
+    "white": [
+      "pawn"
+    ],
+    "black": []
+  },
+  "castling_events": {
+    "white": 0,
+    "black": 0
+  },
+  "en_passant_moves": 0,
+  "pawn_promotions": [],
+  "check_events": 0,
+  "move_times": [
+    2.417710781097412,
+    0.8798701763153076,
+    3.325922966003418,
+    1.946885108947754,
+    1.3092288970947266,
+    1.0424599647521973,
+    1.2821531295776367
+  ],
+  "piece_moves": {
+    "pawn": 3,
+    "knight": 1,
+    "bishop": 1,
+    "rook": 0,
+    "queen": 2,
+    "king": 0
+  },
+  "board_positions": [
+    [
+      4,
+      3
+    ],
+    [
+      4,
+      4
+    ],
+    [
+      7,
+      4
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      5
+    ],
+    [
+      5,
+      6
+    ]
+  ],
+  "winner": "white",
+  "game_type": "standard"
+}

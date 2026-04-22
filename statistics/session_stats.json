@@ -1,0 +1,13 @@
+{
+  "games_played": 185,
+  "wins": {
+    "white": 185,
+    "black": 0
+  },
+  "total_time_played": 11694.207751989365,
+  "favorite_pieces": {
+    "white": {},
+    "black": {}
+  },
+  "average_moves_per_game": 27.767567567567557
+}
