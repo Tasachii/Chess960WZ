@@ -14,6 +14,7 @@ class ChessBoard:
         self.captured_white = []
         self.captured_black = []
         self.notation_log = []
+        self.last_move = None
 
         self.white_ep = (100, 100)
         self.black_ep = (100, 100)
@@ -21,17 +22,15 @@ class ChessBoard:
 
         self.square_size = 90
         self.start_pos = 20
-        self.board_size = 800  # Fixed board size
+        self.board_size = 800
 
         self.selected_piece = None
         self.highlight_promotion_option = -1
 
-        # Classic Green Theme
         self.color_light = (238, 238, 210)
         self.color_dark = (118, 150, 86)
         self.color_highlight = (246, 246, 130)
 
-        # Menu Theme Colors
         self.menu_bg_top = (22, 22, 32)
         self.menu_bg_bottom = (32, 32, 48)
         self.menu_grid = (28, 28, 42)
@@ -53,7 +52,11 @@ class ChessBoard:
         self.captured_white = []
         self.captured_black = []
         self.notation_log = []
+        self.white_ep = (100, 100)
+        self.black_ep = (100, 100)
+        self.last_move = None
 
+        # Reset square grid sync
         for col in range(8):
             for row in range(8):
                 self.squares[col][row].piece = None
@@ -61,6 +64,7 @@ class ChessBoard:
         if back_rank is None:
             back_rank = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook']
 
+        # Setup pieces and sync with square grid
         for col, pt in enumerate(back_rank):
             wp = make_piece(pt, WHITE, (col, 0), self)
             bp = make_piece(pt, BLACK, (col, 7), self)
@@ -81,10 +85,8 @@ class ChessBoard:
         self.notation_log.append(text)
 
     def draw_common_menu_elements(self):
-        # Background pattern matching the main menu
         self.screen.fill(self.menu_bg_top)
         pygame.draw.rect(self.screen, self.menu_bg_bottom, pygame.Rect(0, HEIGHT // 2, WIDTH, HEIGHT // 2))
-
         sq = 60
         for row in range(HEIGHT // sq + 1):
             for col in range(WIDTH // sq + 1):
@@ -93,26 +95,19 @@ class ChessBoard:
 
     def draw_board(self, flipped=False):
         self.draw_common_menu_elements()
-
         margin = (800 - (8 * self.square_size)) // 2
         start_x = margin
         start_y = margin
 
-        # Gold frame around board
         pygame.draw.line(self.screen, GOLD, (800, 0), (800, 900), 2)
         pygame.draw.line(self.screen, GOLD, (0, 800), (800, 800), 2)
 
         for row in range(8):
             for col in range(8):
-                # Calculate screen pos based on flip
                 screen_row = row if flipped else 7 - row
                 screen_col = 7 - col if flipped else col
-
-                rect = [
-                    start_x + screen_col * self.square_size,
-                    start_y + screen_row * self.square_size,
-                    self.square_size, self.square_size
-                ]
+                rect = [start_x + screen_col * self.square_size, start_y + screen_row * self.square_size,
+                        self.square_size, self.square_size]
 
                 if (row + col) % 2 == 0:
                     pygame.draw.rect(self.screen, self.color_dark, rect)
@@ -121,20 +116,29 @@ class ChessBoard:
                 else:
                     pygame.draw.rect(self.screen, self.color_light, rect)
 
+        # Highlight last move
+        if self.last_move:
+            highlight_surface = pygame.Surface((self.square_size, self.square_size), pygame.SRCALPHA)
+            highlight_surface.fill((255, 255, 0, 70))
+            for pos in self.last_move:
+                if pos:
+                    sx = 7 - pos[0] if flipped else pos[0]
+                    sy = pos[1] if flipped else 7 - pos[1]
+                    self.screen.blit(highlight_surface,
+                                     (start_x + sx * self.square_size, start_y + sy * self.square_size))
+
         try:
             lf = pygame.font.Font('freesansbold.ttf', 16)
         except:
             lf = pygame.font.SysFont('Arial', 16)
 
         for i in range(8):
-            # A-H labels
             fl_idx = 7 - i if flipped else i
             fl = chr(65 + fl_idx)
             x = start_x + i * self.square_size + self.square_size // 2 - 5
             self.screen.blit(lf.render(fl, True, CREAM_WHITE), (x, 10))
             self.screen.blit(lf.render(fl, True, CREAM_WHITE), (x, 770))
 
-            # 1-8 labels
             rk_val = i + 1 if flipped else 8 - i
             rk = str(rk_val)
             y = start_y + i * self.square_size + self.square_size // 2 - 5
@@ -143,7 +147,6 @@ class ChessBoard:
 
     def draw_menu(self):
         self.draw_common_menu_elements()
-
         try:
             title_font = pygame.font.Font('freesansbold.ttf', 72)
             sub_font = pygame.font.Font('freesansbold.ttf', 20)
@@ -156,10 +159,11 @@ class ChessBoard:
             sh = title_font.render("CHESS 960 WZ", True, WOOD_DARK)
             sh.set_alpha(alpha)
             self.screen.blit(sh, sh.get_rect(center=(WIDTH // 2 + dx, 148 + dy)))
+
         title = title_font.render("CHESS 960 WZ", True, GOLD)
         self.screen.blit(title, title.get_rect(center=(WIDTH // 2, 148)))
 
-        sub = sub_font.render("Fischer Random Chess  —  960 Unique Starting Positions", True, LIGHT_GRAY)
+        sub = sub_font.render("Fischer Random Chess  -  960 Unique Starting Positions", True, LIGHT_GRAY)
         self.screen.blit(sub, sub.get_rect(center=(WIDTH // 2, 208)))
         pygame.draw.line(self.screen, GOLD, (WIDTH // 2 - 280, 228), (WIDTH // 2 + 280, 228), 1)
 
@@ -178,7 +182,6 @@ class ChessBoard:
             pygame.draw.rect(self.screen, bg, btn, border_radius=14)
             border_col = GOLD if hover else (100, 85, 50)
             pygame.draw.rect(self.screen, border_col, btn, 3, border_radius=14)
-
             icon_rect = pygame.Rect(btn.x + 20, btn.centery - 20, 40, 40)
             pygame.draw.rect(self.screen, accent, icon_rect, border_radius=6)
             txt = btn_font.render(label, True, fg)
@@ -188,10 +191,10 @@ class ChessBoard:
         hover_q = quit_btn.collidepoint(mouse_pos)
         pygame.draw.rect(self.screen, (80, 20, 20) if hover_q else (50, 20, 20), quit_btn, border_radius=8)
         pygame.draw.rect(self.screen, DARK_RED, quit_btn, 2, border_radius=8)
-        qt = self.font.render("✕  Quit", True, (220, 100, 100))
+        qt = self.font.render("X  Quit", True, (220, 100, 100))
         self.screen.blit(qt, qt.get_rect(center=quit_btn.center))
 
-        hint = info_font.render("F — Flip Board   |   R — Return to Menu during game", True, (80, 80, 100))
+        hint = info_font.render("F - Flip Board   |   R - Return to Menu during game", True, (80, 80, 100))
         self.screen.blit(hint, hint.get_rect(center=(WIDTH // 2, HEIGHT - 28)))
 
         return white_btn, black_btn, quit_btn
@@ -199,7 +202,6 @@ class ChessBoard:
     def draw_status_area(self, turn_step, white_time=0, black_time=0):
         status_panel_x = 800
 
-        # Turn indicator
         turn_text = "White's Turn" if turn_step < 2 else "Black's Turn"
         ind_color = WHITE if turn_step < 2 else BLACK
         txt_color = BLACK if turn_step < 2 else WHITE
@@ -208,16 +210,13 @@ class ChessBoard:
         pygame.draw.rect(self.screen, GOLD, turn_rect, 3, border_radius=10)
         try:
             tf = pygame.font.Font('freesansbold.ttf', 28)
-        except:
-            tf = pygame.font.SysFont('Arial', 28)
-        lbl = tf.render(turn_text, True, txt_color)
-        self.screen.blit(lbl, lbl.get_rect(center=turn_rect.center))
-
-        # Clocks
-        try:
             timef = pygame.font.Font('freesansbold.ttf', 32)
         except:
+            tf = pygame.font.SysFont('Arial', 28)
             timef = pygame.font.SysFont('Arial', 32)
+
+        lbl = tf.render(turn_text, True, txt_color)
+        self.screen.blit(lbl, lbl.get_rect(center=turn_rect.center))
 
         for time_val, rect_x, bg, fg in [
             (white_time, 240, WHITE, BLACK),
@@ -231,7 +230,28 @@ class ChessBoard:
             tl = timef.render(tstr, True, fg)
             self.screen.blit(tl, tl.get_rect(center=trect.center))
 
-        # Buttons
+        # Material Advantage Bar implementation
+        piece_values = {'pawn': 1, 'knight': 3, 'bishop': 3, 'rook': 5, 'queen': 9, 'king': 0}
+        w_score = sum(piece_values.get(p.piece_type, 0) for p in self.white_pieces)
+        b_score = sum(piece_values.get(p.piece_type, 0) for p in self.black_pieces)
+        diff = w_score - b_score
+
+        bar_x, bar_y, bar_w, bar_h = 530, 845, 230, 10
+        pygame.draw.rect(self.screen, (30, 30, 30), [bar_x, bar_y, bar_w, bar_h])
+        max_adv = 15
+        clamped_diff = max(min(diff, max_adv), -max_adv)
+        fill_width = int(bar_w / 2 + (clamped_diff / max_adv) * (bar_w / 2))
+
+        pygame.draw.rect(self.screen, CREAM_WHITE, [bar_x, bar_y, fill_width, bar_h])
+        pygame.draw.rect(self.screen, GOLD, [bar_x, bar_y, bar_w, bar_h], 1)
+
+        if diff > 0:
+            txt = self.small_font.render(f"+{diff}", True, CREAM_WHITE)
+            self.screen.blit(txt, (bar_x - 30, bar_y - 3))
+        elif diff < 0:
+            txt = self.small_font.render(f"+{-diff}", True, (50, 50, 50))
+            self.screen.blit(txt, (bar_x + bar_w + 10, bar_y - 3))
+
         w_res = pygame.Rect(status_panel_x + 30, 700, 170, 40)
         pygame.draw.rect(self.screen, LIGHT_GRAY, w_res, border_radius=8)
         pygame.draw.rect(self.screen, DARK_RED, w_res, 2, border_radius=8)
@@ -259,7 +279,6 @@ class ChessBoard:
             x, y = piece.position
             sx = 7 - x if flipped else x
             sy = y if flipped else 7 - y
-
             screen_x = start_x + sx * self.square_size
             screen_y = start_y + sy * self.square_size
             ox = (self.square_size - piece.image.get_width()) // 2
@@ -274,7 +293,6 @@ class ChessBoard:
             x, y = piece.position
             sx = 7 - x if flipped else x
             sy = y if flipped else 7 - y
-
             screen_x = start_x + sx * self.square_size
             screen_y = start_y + sy * self.square_size
             ox = (self.square_size - piece.image.get_width()) // 2
@@ -345,10 +363,8 @@ class ChessBoard:
         pulse = 4 + abs(math.sin(counter * 0.2) * 3)
 
         for king, opponent, ring_color in [
-            (next((p for p in self.white_pieces if p.piece_type == 'king'), None),
-             self.black_pieces, DARK_RED),
-            (next((p for p in self.black_pieces if p.piece_type == 'king'), None),
-             self.white_pieces, DARK_BLUE),
+            (next((p for p in self.white_pieces if p.piece_type == 'king'), None), self.black_pieces, DARK_RED),
+            (next((p for p in self.black_pieces if p.piece_type == 'king'), None), self.white_pieces, DARK_BLUE),
         ]:
             if king:
                 for op in opponent:
@@ -382,12 +398,6 @@ class ChessBoard:
             self.screen.blit(piece.image, (opt.x + 20, opt.y + (opt.height - piece.image.get_height()) // 2))
             nm = self.font.render(pt.capitalize(), True, BLACK)
             self.screen.blit(nm, nm.get_rect(midleft=(opt.x + 100, opt.centery)))
-
-        inst_panel = pygame.Rect(800, 800, 400, 100)
-        pygame.draw.rect(self.screen, (32, 32, 48), inst_panel)
-        pygame.draw.rect(self.screen, GOLD, inst_panel, 2)
-        inst = self.medium_font.render('Select Piece to Promote', True, CREAM_WHITE)
-        self.screen.blit(inst, inst.get_rect(center=inst_panel.center))
 
     def draw_castling(self, castling_moves, turn_step, flipped=False):
         margin = (800 - (8 * self.square_size)) // 2
@@ -434,8 +444,8 @@ class ChessBoard:
         return (x, y)
 
     def is_king_in_check(self, color):
-        king = next((p for p in (self.white_pieces if color == WHITE else self.black_pieces)
-                     if p.piece_type == 'king'), None)
+        king = next((p for p in (self.white_pieces if color == WHITE else self.black_pieces) if p.piece_type == 'king'),
+                    None)
         if not king: return False
         opp = self.black_pieces if color == WHITE else self.white_pieces
         return any(king.get_pos() in p.get_valid_moves() for p in opp)
@@ -444,30 +454,44 @@ class ChessBoard:
         pieces = self.white_pieces if attacking_color == WHITE else self.black_pieces
         return any(position in p.get_valid_moves() for p in pieces)
 
-    def is_checkmate(self, color):
-        if not self.is_king_in_check(color):
-            return False
+    def _has_legal_moves(self, color):
+        # Ghost pawn fix correctly integrated for simulations
         pieces = self.white_pieces if color == WHITE else self.black_pieces
-        for piece in pieces:
-            orig = list(piece.position)
-            for move in piece.get_valid_moves():
-                cap = self.get_piece_at_position(move)
-                cap_w = cap_b = None
+        for p in pieces:
+            orig = list(p.position)
+            for m in p.get_valid_moves():
+                cap_pos = m
+                if p.piece_type == 'pawn':
+                    if p.color == WHITE and tuple(m) == self.black_ep:
+                        cap_pos = (m[0], m[1] - 1)
+                    elif p.color == BLACK and tuple(m) == self.white_ep:
+                        cap_pos = (m[0], m[1] + 1)
+
+                cap = self.get_piece_at_position(cap_pos)
                 if cap:
                     if cap.color == WHITE:
-                        self.white_pieces.remove(cap);
-                        cap_w = cap
+                        self.white_pieces.remove(cap)
                     else:
-                        self.black_pieces.remove(cap);
-                        cap_b = cap
-                piece.position = list(move)
+                        self.black_pieces.remove(cap)
+
+                p.position = list(m)
                 safe = not self.is_king_in_check(color)
-                piece.position = orig
-                if cap_w: self.white_pieces.append(cap_w)
-                if cap_b: self.black_pieces.append(cap_b)
-                if safe:
-                    return False
-        return True
+                p.position = orig
+
+                if cap:
+                    if cap.color == WHITE:
+                        self.white_pieces.append(cap)
+                    else:
+                        self.black_pieces.append(cap)
+
+                if safe: return True
+        return False
+
+    def is_checkmate(self, color):
+        return self.is_king_in_check(color) and not self._has_legal_moves(color)
+
+    def is_stalemate(self, color):
+        return not self.is_king_in_check(color) and not self._has_legal_moves(color)
 
     def check_castling(self, color):
         moves = []
@@ -485,36 +509,31 @@ class ChessBoard:
         kx, ky = king.position
 
         for rook in rooks:
-            if rook.has_moved:
-                continue
+            if rook.has_moved: continue
 
             rx, ry = rook.position
             is_kingside = rx > kx
 
-            # Chess960 Targets: King to C or G, Rook to D or F
+            # Chess960 castling target rule
             king_dest_x = 6 if is_kingside else 2
             rook_dest_x = 5 if is_kingside else 3
 
             king_dest = (king_dest_x, ky)
             rook_dest = (rook_dest_x, ky)
 
-            # Check if path is clear
             min_x = min(kx, rx, king_dest_x, rook_dest_x)
             max_x = max(kx, rx, king_dest_x, rook_dest_x)
             path_clear = True
 
             all_pieces = self.white_pieces + self.black_pieces
             for x in range(min_x, max_x + 1):
-                if x == kx or x == rx:
-                    continue
+                if x == kx or x == rx: continue
                 if any(p.position == [x, ky] for p in all_pieces):
                     path_clear = False
                     break
 
-            if not path_clear:
-                continue
+            if not path_clear: continue
 
-            # Check if King path is safe
             king_min_x = min(kx, king_dest_x)
             king_max_x = max(kx, king_dest_x)
             safe_path = True
@@ -524,9 +543,7 @@ class ChessBoard:
                     safe_path = False
                     break
 
-            if not safe_path:
-                continue
-
+            if not safe_path: continue
             moves.append((king_dest, rook_dest))
 
         return moves

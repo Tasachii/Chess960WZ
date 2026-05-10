@@ -92,9 +92,6 @@ class ChessStatistics:
                 1 if is_promotion else 0
             ])
 
-    def record_check(self):
-        self.game_data['check_events'] += 1
-
     def end_game(self, winner, white_time_used, black_time_used):
         self.game_data['winner'] = winner
         self.game_data['white_time_used'] = round(white_time_used, 2)

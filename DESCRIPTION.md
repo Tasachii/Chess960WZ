@@ -2,37 +2,37 @@
 
 ## 1. Project Overview
 
-- **Project Name:** Chess960 WZ
+- **Project Name:** Chess960WZ
 
 - **Brief Description:**
-  Chess960 WZ is a two-player Chess960 (Fischer Random Chess) desktop game built with Python and Pygame. The back rank of each side is randomized using the official 5-step combinatorial algorithm, producing one of 960 unique starting positions per game. Players choose their side (White or Black), select a time control (Bullet, Blitz, Rapid, or Classical), and then play a full chess match with standard rules including castling, en passant, and pawn promotion.
+  Chess960WZ is a local two-player Fischer Random Chess (Chess960) desktop application built with Python and Pygame. At the start of every game, the back-rank pieces are randomized using the official 5-step combinatorial algorithm, producing one of 960 valid starting positions. The game enforces standard chess rules in full — including Chess960-aware castling, en passant, pawn promotion, check, checkmate, and stalemate — so players are forced to think tactically from move one rather than rely on memorized openings.
 
-  Beyond the game itself, Chess960 WZ tracks detailed per-move and per-game statistics stored in CSV files and visualizes them through an interactive Analytics Dashboard with multiple chart types. Every finished game is also exported as a PGN file so results can be reviewed in any chess tool.
+  In addition to gameplay, the system acts as an analytical tool. Every move and every completed game is logged to CSV automatically, and the in-app Interactive Analytics Dashboard renders seven dynamic chart types (Piece Dependency, Capture Hesitation, Think Time by Phase, Lethality Matrix, Win Rates, Duration Distribution, Move Count Trend) with White / Black / Both side filters. Each finished match is also exported as a standard PGN file compatible with Lichess and Chess.com.
 
 - **Problem Statement:**
-  Standard chess programs almost always start from the same position, making it easy to rely on memorized openings rather than genuine strategic thinking. Chess960 forces players to think from move one. This project brings that variant to life while adding data analysis tools that let players review how they think and play over time.
+  Standard chess relies heavily on memorized opening sequences, reducing the role of pure calculation in the early game. Players also lack accessible, data-driven tools for analyzing their own decision patterns — which pieces they over-rely on, how long they hesitate before captures, how their thinking speed shifts between phases. Chess960WZ addresses both: it removes opening theory from the equation and turns each played game into measurable feedback.
 
 - **Target Users:**
-  Chess players who want to improve by reducing opening memorization, or anyone curious about personal play-style statistics.
+  Chess players who want to train calculation skills without depending on opening preparation, and data-curious players who want to see their own playstyle quantified through real per-move statistics.
 
 - **Key Features:**
-  - Chess960 random back-rank generation (960 unique positions)
-  - Full chess rule enforcement: legal move validation, check/checkmate detection, castling (Chess960-compatible), en passant, pawn promotion
-  - Four time controls: Bullet (1 min), Blitz (3 min), Rapid (10 min), Classical (30 min)
-  - Board flip so either player can sit on the same keyboard
-  - Move notation panel (algebraic notation, live during game)
-  - PGN export after every game
-  - Per-move CSV logging (piece type, move time, capture, check, castle, promotion)
-  - Per-game CSV logging (winner, duration, move counts, capture counts, time used)
-  - Interactive Analytics Dashboard with 7 chart types:
-    - Piece Dependency (pie chart)
-    - Think Time by Phase (line chart)
-    - Capture Hesitation (bar chart)
-    - Lethality Matrix (stacked bar)
-    - Win Rates (pie chart)
-    - Duration Distribution (histogram)
-    - Move Count Trend (line chart)
-  - Game History & Statistics summary screen
+  - Chess960 randomized starting position generator (960 unique back-ranks).
+  - Full chess rule enforcement, including Chess960-aware castling, en passant, pawn promotion, check, checkmate, stalemate, and the 50-move rule.
+  - Four time control modes (Bullet, Blitz, Rapid, Classical) with per-side countdown clocks.
+  - Board-flip support (F key) for same-keyboard two-player play.
+  - Live algebraic notation panel updating beside the board on every move.
+  - Automatic PGN export after each game (`pgn_files/`).
+  - Per-move and per-game CSV data logging that accumulates across sessions.
+  - Interactive Analytics Dashboard with seven dynamic chart types and a White / Black / Both filter.
+
+**Screenshots:**
+- **Gameplay overview:** ![Gameplay](screenshots/gameplay/game1.png)
+- **Data visualization dashboard:** ![Dashboard Overview](screenshots/visualization/dashboard_overview.png)
+
+**Documents & Presentation:**
+- **Proposal:** [Project Proposal (PDF)](proposal.pdf)
+- **YouTube Presentation:** [Watch the Video Demonstration](https://youtu.be/YOUR_VIDEO_ID_HERE)
+  *(The video covers a short intro, a demonstration of the game and statistics, an explanation of the class design, and an overview of the data visualization.)*
 
 ---
 
@@ -40,67 +40,53 @@
 
 ### 2.1 Background
 
-Chess960 was invented by former World Champion Bobby Fischer in 1996 as a way to reduce the impact of opening theory and put the focus back on pure chess understanding. In standard chess, the first 15–20 moves of many games are essentially memorized sequences. Chess960 breaks this by randomizing the starting position while keeping all other rules identical, so players must reason independently from the very first move.
+- **Why this project exists:** Chess960 was invented by Bobby Fischer specifically to neutralize the modern reliance on memorized opening preparation. By randomizing the back-rank, both players are pulled out of theory immediately and must rely on calculation and pattern recognition from the very first move. Chess960WZ brings this variant to a clean local desktop environment without requiring an internet account or external chess engine.
 
-This project exists to bring Chess960 to a local two-player desktop experience while also answering a question that most chess apps ignore: *how do I actually play?* By logging every move with its timing, capture, and phase data, the analytics dashboard makes patterns visible — which pieces you rely on, how long you think in each game phase, which pieces you use to capture most aggressively.
+- **What inspired the project:** Casual chess players often have no way to see how they actually play — which pieces they lean on, when they spend the most time thinking, which captures make them hesitate. Even strong online platforms surface aggregate ratings rather than per-move behavioral patterns. Chess960WZ was inspired by the idea that a single game already contains enough signal (40–80 timestamped moves with full context) to surface those patterns, if it is recorded carefully enough.
+
+- **Importance of solving this problem:** Combining the calculation-first nature of Chess960 with automatic per-move data collection turns each completed game into an immediate feedback loop. Players see what they did, not just whether they won.
 
 ### 2.2 Objectives
 
-- Implement all standard chess rules correctly in an object-oriented architecture
-- Generate valid Chess960 starting positions using the official 5-step algorithm
-- Provide a smooth two-player local game experience with visual feedback (check highlighting, valid-move dots, promotion dialog)
-- Record detailed move-level and game-level statistics automatically during play
-- Visualize those statistics through an in-app interactive dashboard
-- Export every game as a standard PGN file for use in external chess tools
+- Implement a fully playable, object-oriented Chess960 game with an accurate rule engine — every legal move, every restriction, no shortcuts.
+- Collect statistics silently in the background during normal play, with no extra steps for the user, so the game remains the focus.
+- Provide a responsive Pygame GUI with helpers (valid-move dots, last-move highlight, check indicator, material bar, live notation panel, board flip).
+- Ensure interoperability with the wider chess ecosystem by exporting standard PGN files that load correctly in Lichess, Chess.com, and any standard PGN viewer.
+- Render the collected data through a multi-chart Interactive Analytics Dashboard so the player can explore their own patterns without leaving the app.
 
 ---
 
 ## 3. UML Class Diagram
 
-The full class diagram is attached as **`uml.pdf`** in the repository root.
+The UML Class Diagram represents the system structure: classes, attributes, methods, and the relationships between them (composition, association, inheritance).
 
-**Classes and key relationships:**
+**Submission Requirement:**
+- Attached in `.pdf` format: **[uml.pdf](uml.pdf)**
 
-```
-ChessGame ──uses──> ChessBoard
-ChessGame ──uses──> ChessStatistics
-ChessGame ──uses──> PGNExporter
-ChessGame ──uses──> Chess960Generator
-ChessBoard ──contains──> Square (8×8)
-ChessBoard ──contains──> ChessPiece (list)
-ChessPiece <|── Pawn
-ChessPiece <|── Rook
-ChessPiece <|── Knight
-ChessPiece <|── Bishop
-ChessPiece <|── Queen
-ChessPiece <|── King
-```
+The diagram emphasizes three relationship types:
+- **Composition** — `ChessGame` owns one `ChessBoard`; `ChessBoard` owns an 8×8 grid of `Square` objects; `ChessGame` owns one `ChessStatistics` and one `PGNExporter`.
+- **Inheritance** — `ChessPiece` is the abstract base; `Pawn`, `Rook`, `Knight`, `Bishop`, `Queen`, and `King` each inherit from it and override `get_valid_moves()`. `Pawn` additionally overrides `get_attack_squares()` because its capture squares differ from its move squares.
+- **Association** — `Square` references the `ChessPiece` currently occupying it; `Chess960Generator` is a stateless utility used by `ChessGame` at game start.
 
 ---
 
 ## 4. Object-Oriented Programming Implementation
 
-| Class | File | Description |
-|---|---|---|
-| `ChessGame` | `chess_game.py` | Main controller. Manages game state, event loop, turn logic, timer, promotion, and routing between screens. |
-| `ChessBoard` | `chess_board.py` | Holds the 8×8 grid of `Square` objects and all piece lists. Handles drawing (board, pieces, valid moves, check highlight, promotion dialog, notation panel) and game-logic queries (check, checkmate, castling, en passant positions). |
-| `ChessPiece` | `chess_piece.py` | Abstract base class for all pieces. Stores piece type, color, position, and `has_moved` flag. Loads the sprite image and defines the `get_valid_moves()` interface. |
-| `Pawn` | `chess_piece.py` | Extends `ChessPiece`. Implements forward movement (×1 or ×2 from start), diagonal capture, and en passant detection. |
-| `Rook` | `chess_piece.py` | Extends `ChessPiece`. Slides along ranks and files until blocked. |
-| `Knight` | `chess_piece.py` | Extends `ChessPiece`. Jumps in L-shapes; ignores intervening pieces. |
-| `Bishop` | `chess_piece.py` | Extends `ChessPiece`. Slides diagonally until blocked. |
-| `Queen` | `chess_piece.py` | Extends `ChessPiece`. Combines Rook and Bishop movement. |
-| `King` | `chess_piece.py` | Extends `ChessPiece`. Moves one square in any direction (castling handled separately in `ChessBoard`). |
-| `Square` | `square.py` | Represents one cell (col, row). Stores the piece on it and its light/dark color. |
-| `ChessStatistics` | `chess_statistics.py` | Records moves and game results to CSV files. Generates matplotlib charts for the analytics dashboard. |
-| `PGNExporter` | `pgn_exporter.py` | Builds algebraic notation strings and writes standard PGN files after each game. |
-| `Chess960Generator` | `chess960_generator.py` | Implements the 5-step algorithm to produce a valid Chess960 back rank and generates the starting FEN string. |
+- **ChessGame:** Top-level controller. Owns the game loop, screen routing (menu, time-select, playing, history, chart viewer), turn state, mouse / keyboard input handling, timer updates, and the orchestration of the move pipeline (selection → validation → move → notation → stats → state-check).
 
-**OOP Principles used:**
-- **Inheritance** — all six piece classes extend `ChessPiece`
-- **Polymorphism** — `get_valid_moves()` is overridden in each subclass; `ChessGame` calls it uniformly without knowing the concrete type
-- **Encapsulation** — board state, statistics, and export logic are each in dedicated classes with clear interfaces
-- **Factory Pattern** — `make_piece(piece_type, color, position, board)` in `chess_piece.py` creates the correct subclass without the caller needing to import each one
+- **ChessBoard:** Owns the 8×8 grid of `Square` objects and the live lists of white and black pieces. Responsible for board rendering, the notation panel, the material bar, check / checkmate / stalemate detection, Chess960-aware castling validation, and en passant tracking.
+
+- **Square:** Represents one cell on the board. Stores its grid coordinate, its visual color (light / dark based on `(col + row) % 2`), and a reference to the `ChessPiece` currently on it. Provides convenience predicates (`is_empty`, `has_enemy`, `has_ally`).
+
+- **ChessPiece (abstract base):** Defines the shared piece interface — color, position, `has_moved` flag, image loading with placeholder fallback, and the abstract `get_valid_moves()` and `get_attack_squares()` hooks. The default `get_attack_squares()` returns the same squares as `get_valid_moves()`, which is correct for every piece except the pawn.
+
+- **Pawn, Rook, Knight, Bishop, Queen, King:** Concrete subclasses, each implementing `get_valid_moves()` for its movement rule (one-step pawn advance with optional two-step opening, sliding rook / bishop / queen, knight L-jump, single-step king). `Pawn` additionally overrides `get_attack_squares()` so that its capture diagonals are reported even on empty squares, which is required for correct castling validation.
+
+- **ChessStatistics:** Data engine. Maintains the per-game record dictionary, appends one row per move to `moves_detail.csv` and one row per finished game to `games_history.csv`, and uses `pandas` + `matplotlib` to render the seven dashboard charts on demand.
+
+- **Chess960Generator:** Stateless utility. Produces a valid Chess960 back-rank using the 5-step combinatorial algorithm and translates that back-rank into a starting FEN string for the PGN headers.
+
+- **PGNExporter:** Translation layer. Converts each move (from / to coordinates plus capture, check, mate, promotion, castling flags) into standard algebraic notation, accumulates them into a move list, and writes a well-formed `.pgn` file with the full required header block including `[Variant "Chess960"]` and `[FEN "..."]`.
 
 ---
 
@@ -108,57 +94,36 @@ ChessPiece <|── King
 
 ### 5.1 Data Recording Method
 
-Data is recorded automatically during gameplay with no action required from the player.
+Data is recorded automatically during gameplay with no user intervention required.
 
-- **Per-move data** → appended to `statistics/moves_detail.csv` after every move via `ChessStatistics.record_move()`
-- **Per-game data** → appended to `statistics/games_history.csv` when the game ends via `ChessStatistics.end_game()`
-- CSV files are created with headers on first run and appended on subsequent runs, so history accumulates across sessions.
+- **Per-move data:** every completed turn appends one row to `statistics/moves_detail.csv` immediately after the move resolves. Each row carries the move number, piece type, color, destination column / row, time spent on the move (seconds), and boolean flags for capture, captured piece type, check, castle, and promotion.
+- **Per-game data:** when a game ends (checkmate, stalemate, timeout, or resignation), one summary row is appended to `statistics/games_history.csv` with the game id, timestamp, winner, total duration, move counts per side, capture counts per side, total check events, time used per side, and the time-control mode label.
+- Both CSVs persist across launches, so the analytics dashboard always reflects the player's full history rather than a single session.
 
 ### 5.2 Data Features
 
-**`moves_detail.csv` columns:**
+- **`games_history.csv` (one row per game):** `game_id`, `timestamp`, `winner`, `duration`, `total_moves`, `white_moves`, `black_moves`, `white_captures`, `black_captures`, `check_events`, `white_time_used`, `black_time_used`, `game_type`.
+- **`moves_detail.csv` (one row per half-move):** `game_id`, `move_number`, `piece_type`, `color`, `to_col`, `to_row`, `move_time`, `is_capture`, `captured_piece`, `is_check`, `is_castle`, `is_promotion`.
 
-| Column | Type | Description |
-|---|---|---|
-| `game_id` | string | Timestamp-based unique ID for the game |
-| `move_number` | int | Sequential move number within the game |
-| `piece_type` | string | Which piece moved (pawn, rook, …) |
-| `color` | string | `white` or `black` |
-| `to_col` / `to_row` | int | Destination square coordinates (0–7) |
-| `move_time` | float | Seconds taken to make this move |
-| `is_capture` | 0/1 | Whether the move captured a piece |
-| `captured_piece` | string | Type of captured piece, or `none` |
-| `is_check` | 0/1 | Whether the move gave check |
-| `is_castle` | 0/1 | Whether the move was a castle |
-| `is_promotion` | 0/1 | Whether the move was a pawn promotion |
-
-**`games_history.csv` columns:**
-
-| Column | Type | Description |
-|---|---|---|
-| `game_id` | string | Matches moves_detail |
-| `timestamp` | datetime | When the game started |
-| `winner` | string | `white`, `black`, or `draw` |
-| `duration` | float | Total game time in seconds |
-| `total_moves` | int | Number of half-moves |
-| `white_moves` / `black_moves` | int | Moves per side |
-| `white_captures` / `black_captures` | int | Captures per side |
-| `check_events` | int | Total check events in the game |
-| `white_time_used` / `black_time_used` | float | Clock time consumed per side |
-| `game_type` | string | Time control name (bullet, blitz, …) |
+These two tables together are the source for every visualization in the dashboard. The dashboard reads them fresh each time the user switches a chart or filter, so newly played games appear in the analytics immediately.
 
 ---
 
 ## 6. Changed Proposed Features
 
-_(Fill in if your final implementation differs from the original proposal.)_
+The implementation follows the v2.1 proposal closely. Two refinements were made during development:
+
+- **Cleaner separation of concerns:** all complex board-state queries (simulated moves for checkmate / stalemate detection, castling path safety, pawn-attack coverage) live inside `ChessBoard` rather than `ChessGame`. The proposal already implied this structure; in implementation it was made strict so `ChessGame` only orchestrates and never reaches into board internals.
+- **Explicit `get_attack_squares()` separate from `get_valid_moves()`:** added so that pawn capture diagonals are correctly reported on empty squares. Without it, castling validation would let the king walk through a square that an enemy pawn was actually covering. This was not in the proposal because the issue is only visible once Chess960 castling is fully implemented and tested.
+
+All other proposed features (Chess960 generator, full rule enforcement, four time controls, live notation panel, PGN export, seven-chart analytics dashboard with side filter) are implemented as described.
 
 ---
 
 ## 7. External Sources
 
-- **Pygame** — game framework, https://www.pygame.org — LGPL license
-- **pandas** — data processing, https://pandas.pydata.org — BSD license
-- **matplotlib** — chart generation, https://matplotlib.org — PSF/matplotlib license
-- **Chess piece images** — _(add credit and license here if images are not original)_
-- **Chess960 algorithm** — based on the specification at https://en.wikipedia.org/wiki/Fischer_random_chess_numbering_scheme
+- **Pygame** — game rendering and event framework. Author: Pygame Community. https://www.pygame.org. License: LGPL.
+- **pandas** — CSV data processing and aggregation. Author: Pandas Development Team. https://pandas.pydata.org. License: BSD.
+- **matplotlib** — chart generation for the analytics dashboard. Original author: John D. Hunter. https://matplotlib.org. License: PSF / matplotlib license.
+- **Chess piece images** — standard classic chess set, public domain.
+- **Chess960 algorithm reference** — Fischer Random Chess numbering scheme. https://en.wikipedia.org/wiki/Fischer_random_chess_numbering_scheme.
