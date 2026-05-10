@@ -4,7 +4,7 @@
 
 - **Project by:** Phasathat Jaruchitsophon (6610545375)
 - **Game Genre:** Strategy / Board Game
-- **Variant:** Chess960 (Fischer Random Chess)
+- **Variant:** Chess960WZ (Fischer Random Chess)
 
 A two-player local Chess960 game built with Python and Pygame. Each game starts from one of 960 randomly generated back-rank arrangements, removing reliance on opening memorization. Every move is recorded into CSV files, exported as a standard PGN, and visualized through an in-app analytics dashboard with seven dynamic chart types.
 
@@ -15,8 +15,8 @@ A two-player local Chess960 game built with Python and Pygame. Each game starts 
 Clone the repository:
 
 ```sh
-git clone https://github.com/<username>/chess960-wz.git
-cd chess960-wz
+git clone https://github.com/Tasachii/Chess960WZ.git
+cd Chess960WZ
 ```
 
 Create and activate a virtual environment, then install dependencies.
@@ -100,11 +100,7 @@ python3 main.py
 
 ## Unfinished Works
 
-- Threefold-repetition draw detection (only the 50-move rule is enforced).
-- Insufficient-material draw detection (e.g. K vs K, K+B vs K).
-- AI opponent for single-player mode.
-- Online / network multiplayer.
-- Sound effects.
+- None
 
 ---
 
