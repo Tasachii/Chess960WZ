@@ -368,7 +368,7 @@ class ChessBoard:
         ]:
             if king:
                 for op in opponent:
-                    if king.get_pos() in op.get_valid_moves():
+                    if king.get_pos() in op.get_attack_squares():
                         check = True
                         x, y = king.position
                         sx = 7 - x if flipped else x
@@ -448,11 +448,13 @@ class ChessBoard:
                     None)
         if not king: return False
         opp = self.black_pieces if color == WHITE else self.white_pieces
-        return any(king.get_pos() in p.get_valid_moves() for p in opp)
+        # use get_attack_squares so pawn diagonals are counted even on empty squares
+        return any(king.get_pos() in p.get_attack_squares() for p in opp)
 
     def is_square_under_attack(self, position, attacking_color):
         pieces = self.white_pieces if attacking_color == WHITE else self.black_pieces
-        return any(position in p.get_valid_moves() for p in pieces)
+        # use get_attack_squares for the same reason as is_king_in_check
+        return any(position in p.get_attack_squares() for p in pieces)
 
     def _has_legal_moves(self, color):
         # Ghost pawn fix correctly integrated for simulations

@@ -833,4 +833,3 @@ class ChessGame:
         self.pgn = PGNExporter(Chess960Generator.starting_fen(self.back_rank))
         self.stats.start_game()
         self.stats.game_data['game_type'] = TIME_NAMES[self.time_control].lower()
-        self.stats.game_data['game_type'] = TIME_NAMES[self.time_control].lower()
