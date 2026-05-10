@@ -31,7 +31,7 @@
 
 **Documents & Presentation:**
 - **Proposal:** [Project Proposal (PDF)](proposal.pdf)
-- **YouTube Presentation:** [Watch the Video Demonstration](https://youtu.be/YOUR_VIDEO_ID_HERE)
+- **YouTube Presentation:** [Watch the Video Demonstration](https://youtu.be/vuvZLTAKJtE)
   *(The video covers a short intro, a demonstration of the game and statistics, an explanation of the class design, and an overview of the data visualization.)*
 
 ---
