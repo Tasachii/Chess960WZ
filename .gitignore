@@ -18,3 +18,13 @@ env/
 
 statistics/charts/
 pgn_files/
+
+# test / coverage artifacts
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+*.egg-info/
+
+# tooling state (not part of the project)
+.omc/
