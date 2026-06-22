@@ -1,65 +1,67 @@
+from typing import Tuple
+
 import pygame
 from constants import *
 from chess_board import ChessBoard
 from chess_piece import make_piece
 from chess_statistics import ChessStatistics
 from chess960_generator import Chess960Generator
+from game_state_data import GameState
 from pgn_exporter import PGNExporter
+
+Coord = Tuple[int, int]
+
+# Plain mutable game-state fields delegated to ``self.state`` (the GameState
+# holder, A4 seam). ``ChessGame`` keeps backward-compatible ``self.<field>``
+# access via auto-generated properties so the 800-line state machine below is
+# untouched. Infrastructure (screen/board/clock/fonts/stats/pgn) stays direct.
+_STATE_FIELDS = (
+    'game_state', 'turn_step', 'selection', 'valid_moves', 'castling_moves',
+    'counter', 'check', 'winner', 'winner_by_time', 'draw_reason', 'game_over',
+    'needs_game_state_check', 'stats_saved', 'white_promote', 'black_promote',
+    'promo_index', 'board_flipped', 'last_flip_time', 'halfmove_clock',
+    'player_color', 'time_control', 'white_time', 'black_time', 'last_move_time',
+    'last_move_start', 'back_rank', 'chart_metric', 'chart_color',
+)
+
+
+def _state_property(name: str) -> property:
+    """Build a property that proxies ``self.<name>`` to ``self.state.<name>``."""
+    def getter(self):
+        return getattr(self.state, name)
+
+    def setter(self, value):
+        setattr(self.state, name, value)
+
+    return property(getter, setter)
 
 
 class ChessGame:
-    def __init__(self):
+    # Attach the delegating properties after the class body (see below).
+
+    def __init__(self) -> None:
         self.screen = pygame.display.set_mode([WIDTH, HEIGHT])
         pygame.display.set_caption('Chess960WZ')
         self.clock = pygame.time.Clock()
         self.board = ChessBoard(self.screen)
 
-        self.turn_step = 0
-        self.selection = 100
-        self.valid_moves = []
-        self.castling_moves = []
-        self.counter = 0
-        self.check = False
-        self.winner = ''
-        self.winner_by_time = False
-        self.game_over = False
-        self.needs_game_state_check = False
-        self.stats_saved = False
-        self.white_promote = False
-        self.black_promote = False
-        self.promo_index = 100
-        self.board_flipped = False
-        self.last_flip_time = 0
-
-        self.halfmove_clock = 0
-
-        self.player_color = WHITE
-        self.time_control = BLITZ
-        self.white_time = 0
-        self.black_time = 0
-        self.last_move_time = 0
-        self.last_move_start = 0
-
-        self.game_state = MENU
-        self.HISTORY = 4
+        # All running game state lives in one holder (A4); the properties below
+        # keep ``self.turn_step`` etc. working transparently.
+        self.state = GameState()
 
         self.stats = ChessStatistics()
         self.pgn = None
-        self.back_rank = None
-
-        self.chart_metric = 'dependency'
-        self.chart_color = 'all'
 
         try:
             self.font = pygame.font.Font('freesansbold.ttf', 20)
             self.small_font = pygame.font.Font('freesansbold.ttf', 16)
             self.big_font = pygame.font.Font('freesansbold.ttf', 48)
-        except:
+        except pygame.error:
             self.font = pygame.font.SysFont('Arial', 20)
             self.small_font = pygame.font.SysFont('Arial', 16)
             self.big_font = pygame.font.SysFont('Arial', 48)
 
-    def run(self):
+    def run(self) -> None:
         running = True
         while running:
             self.clock.tick(FPS)
@@ -73,7 +75,7 @@ class ChessGame:
                 running = self.handle_gameplay()
                 if not self.game_over and not self.white_promote and not self.black_promote:
                     self.update_timers()
-            elif self.game_state == self.HISTORY:
+            elif self.game_state == HISTORY:
                 running = self.handle_history_view()
             elif self.game_state == CHART_VIEWER:
                 running = self.handle_chart_viewer()
@@ -81,7 +83,7 @@ class ChessGame:
             pygame.display.flip()
         pygame.quit()
 
-    def handle_menu(self):
+    def handle_menu(self) -> bool:
         white_btn, black_btn, quit_btn = self.board.draw_menu()
 
         mouse_pos = pygame.mouse.get_pos()
@@ -111,10 +113,10 @@ class ChessGame:
                 elif quit_btn.collidepoint(pos):
                     return False
                 elif hist_btn.collidepoint(pos):
-                    self.game_state = self.HISTORY
+                    self.game_state = HISTORY
         return True
 
-    def handle_time_selection(self):
+    def handle_time_selection(self) -> bool:
         self.board.draw_common_menu_elements()
         title = self.big_font.render("Select Time Control", True, GOLD)
         self.screen.blit(title, title.get_rect(center=(WIDTH // 2, 150)))
@@ -123,7 +125,7 @@ class ChessGame:
         buttons = []
         try:
             bf = pygame.font.Font('freesansbold.ttf', 36)
-        except:
+        except pygame.error:
             bf = pygame.font.SysFont('Arial', 36)
 
         for i in range(4):
@@ -165,9 +167,12 @@ class ChessGame:
                 self.game_state = MENU
         return True
 
-    def start_game(self):
+    def start_game(self) -> None:
         self.back_rank = Chess960Generator.generate()
-        self.pgn = PGNExporter(Chess960Generator.starting_fen(self.back_rank))
+        self.pgn = PGNExporter(
+            Chess960Generator.starting_fen(self.back_rank),
+            sp_number=Chess960Generator.sp_number(self.back_rank),
+        )
 
         self.game_state = PLAYING
         self.turn_step = 0
@@ -178,6 +183,7 @@ class ChessGame:
         self.check = False
         self.winner = ''
         self.winner_by_time = False
+        self.draw_reason = ''
         self.game_over = False
         self.needs_game_state_check = False
         self.stats_saved = False
@@ -187,6 +193,8 @@ class ChessGame:
         self.halfmove_clock = 0
 
         self.board.setup_board(self.back_rank)
+        # Seed the repetition history with the starting position (White to move).
+        self.board.record_position(WHITE)
         self.last_move_time = pygame.time.get_ticks()
         self.last_move_start = pygame.time.get_ticks()
 
@@ -194,7 +202,7 @@ class ChessGame:
         self.stats.start_game()
         self.stats.game_data['game_type'] = TIME_NAMES[self.time_control].lower()
 
-    def update_timers(self):
+    def update_timers(self) -> None:
         now = pygame.time.get_ticks()
         elapsed = (now - self.last_move_time) / 1000.0
 
@@ -215,7 +223,7 @@ class ChessGame:
 
         self.last_move_time = now
 
-    def handle_gameplay(self):
+    def handle_gameplay(self) -> bool:
         keys = pygame.key.get_pressed()
         now = pygame.time.get_ticks()
         if keys[pygame.K_f] and now - self.last_flip_time > 300:
@@ -247,11 +255,28 @@ class ChessGame:
             self.needs_game_state_check = False
             opp_color = BLACK if self.turn_step >= 2 else WHITE
 
+            # Record the resulting position (opp_color is now to move) before the
+            # threefold check so the latest occurrence is counted.
+            self.board.record_position(opp_color)
+
             if self.board.is_checkmate(opp_color):
                 self.winner = WHITE if opp_color == BLACK else BLACK
                 self.game_over = True
-            elif self.board.is_stalemate(opp_color) or self.halfmove_clock >= 100:
+            elif self.board.is_stalemate(opp_color):
                 self.winner = 'draw'
+                self.draw_reason = 'stalemate'
+                self.game_over = True
+            elif self.board.is_insufficient_material():
+                self.winner = 'draw'
+                self.draw_reason = 'insufficient material'
+                self.game_over = True
+            elif self.board.is_threefold_repetition():
+                self.winner = 'draw'
+                self.draw_reason = 'threefold repetition'
+                self.game_over = True
+            elif self.halfmove_clock >= 100:
+                self.winner = 'draw'
+                self.draw_reason = 'fifty-move rule'
                 self.game_over = True
 
         if self.winner and not self.stats_saved:
@@ -280,14 +305,13 @@ class ChessGame:
 
         return True
 
-    def handle_mouse_click(self, pos):
+    def handle_mouse_click(self, pos: Coord) -> None:
         sq = self.board.get_square_under_mouse(pos, self.board_flipped)
 
         if sq is None:
-            status_panel_x = 800
-            w_res = pygame.Rect(status_panel_x + 30, 700, 170, 40)
-            b_res = pygame.Rect(status_panel_x + 210, 700, 170, 40)
-            quit_btn = pygame.Rect(status_panel_x + 30, 760, 350, 50)
+            w_res = pygame.Rect(*RESIGN_WHITE_RECT)
+            b_res = pygame.Rect(*RESIGN_BLACK_RECT)
+            quit_btn = pygame.Rect(*STATUS_QUIT_RECT)
 
             if w_res.collidepoint(pos):
                 self.winner = BLACK
@@ -305,25 +329,71 @@ class ChessGame:
         else:
             self._handle_player_move((cx, cy), BLACK)
 
-    def _handle_player_move(self, click, color):
+    def _select_piece_at(self, pieces, click: Coord, step_move: int) -> bool:
+        """Select the piece (if any) sitting on ``click`` and enter the move step.
+
+        Shared by the initial selection branch and the re-selection branch of
+        :meth:`_handle_player_move` (A4 de-duplication). Returns ``True`` if a
+        piece was found and selected.
+        """
+        for i, p in enumerate(pieces):
+            if tuple(p.position) == click:
+                self.selection = i
+                self.turn_step = step_move
+                self.get_valid_moves()
+                self.last_move_start = pygame.time.get_ticks()
+                return True
+        return False
+
+    def _try_castle(self, piece, pieces, click: Coord, color: str, step_select: int) -> bool:
+        """Handle ``click`` as a Chess960 castling target for ``piece`` (a king).
+
+        Returns ``True`` if the click matched a castling king-destination and the
+        castle was applied (king + rook moved atomically so the king landing on
+        the rook's square does not spuriously capture it). Extracted from
+        :meth:`_handle_player_move` (FIXLIST A4).
+        """
+        if piece.piece_type != 'king':
+            return False
+        for kd, rd in self.castling_moves:
+            if click != kd:
+                continue
+            side = 'kingside' if kd[0] > piece.position[0] else 'queenside'
+            rook = next((p for p in pieces if p.piece_type == 'rook' and
+                         ((side == 'kingside' and p.position[0] > piece.position[0]) or
+                          (side == 'queenside' and p.position[0] < piece.position[0]))), None)
+            if rook:
+                from_pos = tuple(piece.position)
+                mt = (pygame.time.get_ticks() - self.last_move_start) / 1000.0
+                self.board.castle(piece, rook, kd, rd)
+                self.halfmove_clock += 1
+                self.last_move_time = pygame.time.get_ticks()
+                notation = PGNExporter.to_algebraic('king', from_pos, kd, castling=side)
+                self.board.add_notation(notation)
+                if self.pgn: self.pgn.record_move(notation)
+                self.stats.record_move('king', color, kd, move_time=mt, is_castle=True)
+
+            self.turn_step = 2 if color == WHITE else 0
+            self.selection = 100
+            self.valid_moves = []
+            self.castling_moves = []
+            self.needs_game_state_check = True
+            return True
+        return False
+
+    def _handle_player_move(self, click: Coord, color: str) -> None:
         pieces = self.board.white_pieces if color == WHITE else self.board.black_pieces
         step_select = 0 if color == WHITE else 2
         step_move = 1 if color == WHITE else 3
 
         if self.turn_step == step_select:
-            for i, p in enumerate(pieces):
-                if tuple(p.position) == click:
-                    self.selection = i
-                    self.turn_step = step_move
-                    self.get_valid_moves()
-                    self.last_move_start = pygame.time.get_ticks()
-                    break
+            self._select_piece_at(pieces, click, step_move)
 
         elif self.turn_step == step_move and self.selection != 100:
             piece = pieces[self.selection]
             move_time = (pygame.time.get_ticks() - self.last_move_start) / 1000.0
 
-            if click in self.valid_moves and self.is_move_safe_for_king(piece, click, color):
+            if click in self.valid_moves and self.board.is_move_safe_for_king(piece, click, color):
                 is_castle = (piece.piece_type == 'king' and
                              any(click == kd for kd, rd in self.castling_moves))
                 is_ep = False
@@ -331,8 +401,10 @@ class ChessGame:
                 cap_piece = self.board.get_piece_at_position(click)
 
                 if piece.piece_type == 'pawn':
-                    if color == WHITE and click == self.board.black_ep: is_ep = True
-                    if color == BLACK and click == self.board.white_ep: is_ep = True
+                    if color == WHITE and self.board.black_ep is not None and click == self.board.black_ep:
+                        is_ep = True
+                    if color == BLACK and self.board.white_ep is not None and click == self.board.white_ep:
+                        is_ep = True
 
                 if cap_piece:
                     cap_name = cap_piece.piece_type
@@ -345,6 +417,7 @@ class ChessGame:
                 from_pos = tuple(piece.position)
 
                 self.move_piece(piece, click)
+                self.last_move_time = pygame.time.get_ticks()
 
                 # 50-move rule counter
                 if is_cap or piece.piece_type == 'pawn':
@@ -383,143 +456,41 @@ class ChessGame:
                 self.needs_game_state_check = True
 
             else:
-                # check castling first (only matters when piece is king)
-                handled = False
-                if piece.piece_type == 'king':
-                    for kd, rd in self.castling_moves:
-                        if click == kd:
-                            side = 'kingside' if kd[0] > piece.position[0] else 'queenside'
-                            rook = next((p for p in pieces if p.piece_type == 'rook' and
-                                         ((side == 'kingside' and p.position[0] > piece.position[0]) or
-                                          (side == 'queenside' and p.position[0] < piece.position[0]))), None)
-                            if rook:
-                                from_pos = tuple(piece.position)
-                                mt = (pygame.time.get_ticks() - self.last_move_start) / 1000.0
-                                self.move_piece(piece, kd)
-                                self.move_piece(rook, rd)
-                                self.halfmove_clock += 1
-                                self.last_move_time = pygame.time.get_ticks()
-                                notation = PGNExporter.to_algebraic('king', from_pos, kd, castling=side)
-                                self.board.add_notation(notation)
-                                if self.pgn: self.pgn.record_move(notation)
-                                self.stats.record_move('king', color, kd, move_time=mt, is_castle=True)
+                # Castling target? (only matters when the selected piece is a king.)
+                handled = self._try_castle(piece, pieces, click, color, step_select)
 
-                            self.turn_step = 2 if color == WHITE else 0
-                            self.selection = 100
-                            self.valid_moves = []
-                            self.castling_moves = []
-                            self.needs_game_state_check = True
-                            handled = True
-                            break
-
-                # if click was not a valid move and not a castling square,
-                # treat it as a re-selection / cancel — works for all piece types incl. king
+                # Otherwise the click was neither a valid move nor a castling
+                # square: treat it as a re-selection / cancel (any piece type).
                 if not handled:
                     self.turn_step = step_select
                     self.selection = 100
                     self.valid_moves = []
                     self.castling_moves = []
+                    self._select_piece_at(pieces, click, step_move)
 
-                    for i, p in enumerate(pieces):
-                        if tuple(p.position) == click:
-                            self.selection = i
-                            self.turn_step = step_move
-                            self.get_valid_moves()
-                            self.last_move_start = pygame.time.get_ticks()
-                            break
+    def is_move_safe_for_king(self, piece, new_pos: Coord, color: str) -> bool:
+        # Delegates to the pure core (single simulate/restore implementation).
+        return self.board.is_move_safe_for_king(piece, new_pos, color)
 
-    def is_move_safe_for_king(self, piece, new_pos, color):
-        orig = list(piece.position)
-        cap_pos = new_pos
-
-        # Ghost pawn fix for safety check
-        if piece.piece_type == 'pawn':
-            if piece.color == WHITE and tuple(new_pos) == self.board.black_ep:
-                cap_pos = (new_pos[0], new_pos[1] - 1)
-            elif piece.color == BLACK and tuple(new_pos) == self.board.white_ep:
-                cap_pos = (new_pos[0], new_pos[1] + 1)
-
-        cap = self.board.get_piece_at_position(cap_pos)
-        cap_w = cap_b = None
-
-        if cap:
-            if cap.color == WHITE:
-                self.board.white_pieces.remove(cap)
-                cap_w = cap
-            else:
-                self.board.black_pieces.remove(cap)
-                cap_b = cap
-
-        piece.position = list(new_pos)
-        safe = not self.board.is_king_in_check(color)
-        piece.position = orig
-
-        if cap_w: self.board.white_pieces.append(cap_w)
-        if cap_b: self.board.black_pieces.append(cap_b)
-        return safe
-
-    def get_valid_moves(self):
+    def get_valid_moves(self) -> None:
         self.valid_moves = []
         self.castling_moves = []
         pieces = self.board.white_pieces if self.turn_step <= 1 else self.board.black_pieces
         color = WHITE if self.turn_step <= 1 else BLACK
         if 0 <= self.selection < len(pieces):
             piece = pieces[self.selection]
-            for m in piece.get_valid_moves():
-                if self.is_move_safe_for_king(piece, m, color):
-                    self.valid_moves.append(m)
+            self.valid_moves = self.board.get_valid_moves_for(piece, color)
             if piece.piece_type == 'king':
                 self.castling_moves = self.board.check_castling(color)
 
-    def move_piece(self, piece, new_pos):
-        old_col, old_row = piece.position
-
-        if piece.piece_type == 'pawn':
-            if piece.color == WHITE and tuple(new_pos) == self.board.black_ep:
-                cap = self.board.get_piece_at_position((new_pos[0], new_pos[1] - 1))
-                if cap:
-                    self.board.black_pieces.remove(cap)
-                    self.board.captured_black.append(cap)
-                    self.board.squares[cap.position[0]][cap.position[1]].piece = None
-            elif piece.color == BLACK and tuple(new_pos) == self.board.white_ep:
-                cap = self.board.get_piece_at_position((new_pos[0], new_pos[1] + 1))
-                if cap:
-                    self.board.white_pieces.remove(cap)
-                    self.board.captured_white.append(cap)
-                    self.board.squares[cap.position[0]][cap.position[1]].piece = None
-
-        if piece.piece_type == 'pawn' and abs(old_row - new_pos[1]) == 2:
-            mid_y = (old_row + new_pos[1]) // 2
-            if piece.color == WHITE:
-                self.board.white_ep = (new_pos[0], mid_y)
-            else:
-                self.board.black_ep = (new_pos[0], mid_y)
-        else:
-            if piece.color == WHITE:
-                self.board.white_ep = (100, 100)
-            else:
-                self.board.black_ep = (100, 100)
-
-        cap = self.board.get_piece_at_position(new_pos)
-        if cap:
-            if cap.piece_type == 'king': return False
-            if cap.color == WHITE:
-                self.board.white_pieces.remove(cap)
-                self.board.captured_white.append(cap)
-            else:
-                self.board.black_pieces.remove(cap)
-                self.board.captured_black.append(cap)
-
-        # Update square grid for piece movement
-        self.board.squares[old_col][old_row].piece = None
-        self.board.last_move = ((old_col, old_row), tuple(new_pos))
-        piece.move(new_pos)
-        self.board.squares[new_pos[0]][new_pos[1]].piece = piece
-
+    def move_piece(self, piece, new_pos: Coord) -> bool:
+        # Apply the move via the pure core (grid sync handled by ChessBoard's
+        # _on_square_set hook), then update the render-side move timer.
+        result = self.board.move_piece(piece, new_pos)
         self.last_move_time = pygame.time.get_ticks()
-        return True
+        return result
 
-    def check_promotion(self):
+    def check_promotion(self) -> None:
         self.white_promote = False
         self.black_promote = False
         for i, p in enumerate(self.board.white_pieces):
@@ -533,10 +504,10 @@ class ChessGame:
                 self.promo_index = i
                 break
 
-    def handle_promotion_click(self, pos):
-        panel = pygame.Rect(850, 200, 300, 450)
+    def handle_promotion_click(self, pos: Coord) -> None:
+        panel = pygame.Rect(*PROMO_PANEL)
         if not panel.collidepoint(pos): return
-        idx = (pos[1] - (panel.y + 80)) // 90
+        idx = (pos[1] - (panel.y + PROMO_OPTION_TOP)) // PROMO_OPTION_H
         if idx < 0 or idx >= len(PROMOTION_PIECES): return
         promo_type = PROMOTION_PIECES[idx]
 
@@ -579,18 +550,18 @@ class ChessGame:
                 self.needs_game_state_check = True
                 break
 
-    def check_promotion_selection(self):
+    def check_promotion_selection(self) -> None:
         mp = pygame.mouse.get_pos()
-        panel = pygame.Rect(850, 200, 300, 450)
-        idx = (mp[1] - (panel.y + 80)) // 90 if panel.collidepoint(mp) else -1
+        panel = pygame.Rect(*PROMO_PANEL)
+        idx = (mp[1] - (panel.y + PROMO_OPTION_TOP)) // PROMO_OPTION_H if panel.collidepoint(mp) else -1
         self.board.highlight_promotion_option = idx if 0 <= idx < len(PROMOTION_PIECES) else -1
 
-    def draw_valid_moves(self):
+    def draw_valid_moves(self) -> None:
         self.board.draw_valid_moves(self.valid_moves, self.turn_step, self.board_flipped)
         if self.castling_moves:
             self.board.draw_castling(self.castling_moves, self.turn_step, self.board_flipped)
 
-    def draw_game_over(self):
+    def draw_game_over(self) -> None:
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
         self.screen.blit(overlay, (0, 0))
@@ -608,12 +579,14 @@ class ChessGame:
         try:
             tf = pygame.font.Font('freesansbold.ttf', 48)
             mf = pygame.font.Font('freesansbold.ttf', 22)
-        except:
+        except pygame.error:
             tf = pygame.font.SysFont('Arial', 48)
             mf = pygame.font.SysFont('Arial', 22)
 
         if self.winner == 'draw':
             win_str = "Draw!"
+            if self.draw_reason:
+                win_str += f"  ({self.draw_reason})"
         else:
             side = "White" if self.winner == WHITE else "Black"
             win_str = f"{side} Wins!" + ("  (Timeout)" if self.winner_by_time else "")
@@ -623,7 +596,7 @@ class ChessGame:
         self.screen.blit(t, t.get_rect(center=(panel.centerx, panel.y + 80)))
         self.screen.blit(m, m.get_rect(center=(panel.centerx, panel.y + 148)))
 
-    def handle_history_view(self):
+    def handle_history_view(self) -> bool:
         self.board.draw_common_menu_elements()
         header = self.big_font.render("Game History & Statistics", True, GOLD)
         self.screen.blit(header, header.get_rect(center=(WIDTH // 2, 50)))
@@ -707,7 +680,7 @@ class ChessGame:
                 self.game_state = MENU
         return True
 
-    def handle_chart_viewer(self):
+    def handle_chart_viewer(self) -> bool:
         self.board.draw_common_menu_elements()
         header = self.big_font.render("Dynamic Analytics Dashboard", True, GOLD)
         self.screen.blit(header, header.get_rect(center=(WIDTH // 2, 45)))
@@ -738,7 +711,9 @@ class ChessGame:
             self.screen.blit(ft, ft.get_rect(center=mb.center))
 
             mx += 210
-            if i == 3: mx = 30; my = 140
+            if i == 3:
+                mx = 30
+                my = 140
 
         colors = [('all', 'Both Sides'), ('white', 'White Only'), ('black', 'Black Only')]
         cx, cy = 30, 190
@@ -765,7 +740,7 @@ class ChessGame:
                 self.screen.blit(img, img.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 100)))
             else:
                 self.stats.generate_dynamic_chart(self.chart_metric, self.chart_color)
-        except:
+        except (pygame.error, OSError):
             self.screen.blit(self.font.render("Loading chart...", True, CREAM_WHITE),
                              (WIDTH // 2 - 80, HEIGHT // 2 + 50))
 
@@ -780,22 +755,22 @@ class ChessGame:
             if event.type == pygame.QUIT: return False
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = event.pos
-                if back_btn.collidepoint(pos): self.game_state = self.HISTORY
+                if back_btn.collidepoint(pos): self.game_state = HISTORY
                 update_needed = False
                 for mkey, mb in metric_rects:
                     if mb.collidepoint(pos) and self.chart_metric != mkey:
-                        self.chart_metric = mkey;
+                        self.chart_metric = mkey
                         update_needed = True
                 for ckey, cb in color_rects:
                     if cb.collidepoint(pos) and self.chart_color != ckey:
-                        self.chart_color = ckey;
+                        self.chart_color = ckey
                         update_needed = True
                 if update_needed: self.stats.generate_dynamic_chart(self.chart_metric, self.chart_color)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self.game_state = self.HISTORY
+                self.game_state = HISTORY
         return True
 
-    def reset_game(self):
+    def reset_game(self) -> None:
         playing_as_white = self.board.playing_as_white
         player_color = self.player_color
         tc = self.time_control
@@ -805,6 +780,8 @@ class ChessGame:
         self.board.playing_as_white = playing_as_white
         self.back_rank = Chess960Generator.generate()
         self.board.setup_board(self.back_rank)
+        # Seed the repetition history with the starting position (White to move).
+        self.board.record_position(WHITE)
 
         self.turn_step = 0
         self.selection = 100
@@ -814,6 +791,7 @@ class ChessGame:
         self.check = False
         self.winner = ''
         self.winner_by_time = False
+        self.draw_reason = ''
         self.game_over = False
         self.needs_game_state_check = False
         self.stats_saved = False
@@ -830,6 +808,16 @@ class ChessGame:
         self.last_move_time = pygame.time.get_ticks()
         self.last_move_start = pygame.time.get_ticks()
 
-        self.pgn = PGNExporter(Chess960Generator.starting_fen(self.back_rank))
+        self.pgn = PGNExporter(
+            Chess960Generator.starting_fen(self.back_rank),
+            sp_number=Chess960Generator.sp_number(self.back_rank),
+        )
         self.stats.start_game()
         self.stats.game_data['game_type'] = TIME_NAMES[self.time_control].lower()
+
+
+# Install the GameState-delegating properties on ChessGame so every
+# ``self.<field>`` read/write transparently hits ``self.state.<field>`` (A4).
+for _name in _STATE_FIELDS:
+    setattr(ChessGame, _name, _state_property(_name))
+del _name

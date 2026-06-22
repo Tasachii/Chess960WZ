@@ -1,15 +1,32 @@
+"""Pygame render layer for chess pieces.
+
+The pure move-generation logic lives in :mod:`chess_core.pieces`; this module
+only adds image loading on top of those classes. Each render piece subclasses
+its pure core counterpart and the :class:`PieceRenderMixin`, so ``get_valid_moves``
+/ ``get_attack_squares`` come straight from the (tested, headless) core while the
+``image`` / ``small_image`` surfaces are built here.
+"""
 import pygame
-from constants import WHITE, BLACK, CREAM_WHITE, GOLD
+
+from chess_core.pieces import Bishop as CoreBishop
+from chess_core.pieces import King as CoreKing
+from chess_core.pieces import Knight as CoreKnight
+from chess_core.pieces import Pawn as CorePawn
+from chess_core.pieces import PieceCore
+from chess_core.pieces import Queen as CoreQueen
+from chess_core.pieces import Rook as CoreRook
+from constants import CREAM_WHITE, GOLD, WHITE
+
+# Re-export the pure base so existing ``from chess_piece import ChessPiece`` and
+# isinstance checks keep working.
+ChessPiece = PieceCore
 
 
-class ChessPiece:
-    """Base class for all chess pieces."""
-    def __init__(self, piece_type, color, position, board):
-        self.piece_type = piece_type
-        self.color = color
-        self.position = list(position)  # [col, row]
-        self.board = board
-        self.has_moved = False
+class PieceRenderMixin:
+    """Adds pygame image loading to a pure core piece."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.load_image()
 
     def load_image(self):
@@ -30,7 +47,7 @@ class ChessPiece:
         pygame.draw.rect(surf, bg, (0, 0, 70, 70))
         try:
             font = pygame.font.Font('freesansbold.ttf', 20)
-        except:
+        except pygame.error:
             font = pygame.font.SysFont('Arial', 20)
         txt_color = (50, 50, 50) if self.color == WHITE else CREAM_WHITE
         txt = font.render(self.piece_type[0].upper(), True, txt_color)
@@ -38,192 +55,33 @@ class ChessPiece:
         pygame.draw.rect(surf, GOLD, (0, 0, 70, 70), 2)
         return surf
 
-    def get_pos(self):
-        return tuple(self.position)
 
-    def move(self, new_pos):
-        self.position = list(new_pos)
-        self.has_moved = True
-
-    def get_valid_moves(self):
-        # subclasses override
-        return []
-
-    def get_attack_squares(self):
-        """
-        Squares this piece attacks regardless of occupancy.
-        Default = same as get_valid_moves(). Pawn overrides because its
-        capture squares differ from its move squares.
-        """
-        return self.get_valid_moves()
-
-    def _in_bounds(self, col, row):
-        return 0 <= col <= 7 and 0 <= row <= 7
-
-    def __repr__(self):
-        return f"{self.color[0].upper()}{self.piece_type[:2]}@{tuple(self.position)}"
+class Pawn(PieceRenderMixin, CorePawn):
+    pass
 
 
-class Pawn(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('pawn', color, position, board)
-
-    def get_valid_moves(self):
-        moves = []
-        col, row = self.position
-        direction = 1 if self.color == WHITE else -1
-        all_pos = self.board.get_all_piece_positions()
-        opp_pos = self.board.get_opponent_positions(self.color)
-
-        # forward 1
-        if self._in_bounds(col, row + direction) and (col, row + direction) not in all_pos:
-            moves.append((col, row + direction))
-            # forward 2 from start
-            if not self.has_moved and (col, row + 2 * direction) not in all_pos:
-                moves.append((col, row + 2 * direction))
-
-        # diagonal captures
-        for dc in [-1, 1]:
-            cap = (col + dc, row + direction)
-            if cap in opp_pos:
-                moves.append(cap)
-
-        # en passant
-        ep_color = BLACK if self.color == WHITE else WHITE
-        ep_sq = self.board.get_en_passant_square(ep_color)
-        for dc in [-1, 1]:
-            if (col + dc, row + direction) == ep_sq:
-                moves.append((col + dc, row + direction))
-
-        return moves
-
-    def get_attack_squares(self):
-        """Pawn attacks both diagonals whether occupied or not."""
-        col, row = self.position
-        direction = 1 if self.color == WHITE else -1
-        out = []
-        for dc in [-1, 1]:
-            sq = (col + dc, row + direction)
-            if self._in_bounds(*sq):
-                out.append(sq)
-        return out
+class Rook(PieceRenderMixin, CoreRook):
+    pass
 
 
-class Rook(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('rook', color, position, board)
-
-    def get_valid_moves(self):
-        return self._slide([(0, 1), (0, -1), (1, 0), (-1, 0)])
-
-    def _slide(self, directions):
-        moves = []
-        col, row = self.position
-        ally_pos = self.board.get_piece_positions(self.color)
-        opp_pos = self.board.get_opponent_positions(self.color)
-        for dc, dr in directions:
-            for d in range(1, 8):
-                nc, nr = col + dc * d, row + dr * d
-                if not self._in_bounds(nc, nr):
-                    break
-                pos = (nc, nr)
-                if pos in ally_pos:
-                    break
-                moves.append(pos)
-                if pos in opp_pos:
-                    break
-        return moves
+class Knight(PieceRenderMixin, CoreKnight):
+    pass
 
 
-class Knight(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('knight', color, position, board)
-
-    def get_valid_moves(self):
-        col, row = self.position
-        ally_pos = self.board.get_piece_positions(self.color)
-        jumps = [(2, 1), (2, -1), (-2, 1), (-2, -1),
-                 (1, 2), (1, -2), (-1, 2), (-1, -2)]
-        return [
-            (col + dc, row + dr)
-            for dc, dr in jumps
-            if self._in_bounds(col + dc, row + dr) and (col + dc, row + dr) not in ally_pos
-        ]
+class Bishop(PieceRenderMixin, CoreBishop):
+    pass
 
 
-class Bishop(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('bishop', color, position, board)
-
-    def get_valid_moves(self):
-        return self._slide([(1, 1), (1, -1), (-1, 1), (-1, -1)])
-
-    def _slide(self, directions):
-        moves = []
-        col, row = self.position
-        ally_pos = self.board.get_piece_positions(self.color)
-        opp_pos = self.board.get_opponent_positions(self.color)
-        for dc, dr in directions:
-            for d in range(1, 8):
-                nc, nr = col + dc * d, row + dr * d
-                if not self._in_bounds(nc, nr):
-                    break
-                pos = (nc, nr)
-                if pos in ally_pos:
-                    break
-                moves.append(pos)
-                if pos in opp_pos:
-                    break
-        return moves
+class Queen(PieceRenderMixin, CoreQueen):
+    pass
 
 
-class Queen(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('queen', color, position, board)
-
-    def get_valid_moves(self):
-        return self._slide([(0, 1), (0, -1), (1, 0), (-1, 0),
-                            (1, 1), (1, -1), (-1, 1), (-1, -1)])
-
-    def _slide(self, directions):
-        moves = []
-        col, row = self.position
-        ally_pos = self.board.get_piece_positions(self.color)
-        opp_pos = self.board.get_opponent_positions(self.color)
-        for dc, dr in directions:
-            for d in range(1, 8):
-                nc, nr = col + dc * d, row + dr * d
-                if not self._in_bounds(nc, nr):
-                    break
-                pos = (nc, nr)
-                if pos in ally_pos:
-                    break
-                moves.append(pos)
-                if pos in opp_pos:
-                    break
-        return moves
-
-
-class King(ChessPiece):
-    def __init__(self, color, position, board):
-        super().__init__('king', color, position, board)
-
-    def get_valid_moves(self):
-        col, row = self.position
-        ally_pos = self.board.get_piece_positions(self.color)
-        moves = []
-        for dc in [-1, 0, 1]:
-            for dr in [-1, 0, 1]:
-                if dc == 0 and dr == 0:
-                    continue
-                pos = (col + dc, row + dr)
-                if self._in_bounds(*pos) and pos not in ally_pos:
-                    moves.append(pos)
-        return moves
+class King(PieceRenderMixin, CoreKing):
+    pass
 
 
 def make_piece(piece_type, color, position, board):
-    """Factory — returns the right subclass."""
+    """Factory — returns the right render subclass (with images)."""
     mapping = {
         'pawn': Pawn,
         'rook': Rook,

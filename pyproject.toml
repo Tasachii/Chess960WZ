@@ -1,0 +1,56 @@
+[project]
+name = "chess960wz"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["pygame==2.6.1", "pandas==2.2.3", "matplotlib==3.9.2"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.2",
+    "hypothesis==6.112.0",
+    "coverage[toml]==7.6.1",
+    "ruff==0.6.9",
+    "chess==1.11.2",  # PyPI package providing `import chess` 1.11.2 (python-chess)
+    "pytest-cov==5.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# Flat module layout: list the source modules explicitly so setuptools does not
+# try to auto-discover the data directories (images/, pgn_files/, statistics/, ...)
+# as packages.
+[tool.setuptools]
+py-modules = [
+    "chess960_generator",
+    "chess_board",
+    "chess_game",
+    "chess_piece",
+    "chess_statistics",
+    "constants",
+    "game_state_data",
+    "main",
+    "pgn_exporter",
+    "square",
+]
+packages = ["chess_core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["chess_core", "chess960_generator", "pgn_exporter"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

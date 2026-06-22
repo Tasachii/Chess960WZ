@@ -5,9 +5,10 @@ from pathlib import Path
 class PGNExporter:
     """Builds and saves a standard PGN file from recorded moves."""
 
-    def __init__(self, starting_fen=None):
+    def __init__(self, starting_fen=None, sp_number=None):
         self.moves = []       # list of algebraic notation strings
         self.starting_fen = starting_fen
+        self.sp_number = sp_number   # Scharnagl SP-number (0-959), optional
         self.result = "*"     # unknown until game ends
 
         Path("pgn_files").mkdir(exist_ok=True)
@@ -38,6 +39,8 @@ class PGNExporter:
         lines.append('[Black "Player2"]')
         lines.append(f'[Result "{self.result}"]')
         lines.append('[Variant "Chess960"]')
+        if self.sp_number is not None:
+            lines.append(f'[Opening "Chess960 SP{self.sp_number}"]')
         if self.starting_fen:
             lines.append('[SetUp "1"]')
             lines.append(f'[FEN "{self.starting_fen}"]')

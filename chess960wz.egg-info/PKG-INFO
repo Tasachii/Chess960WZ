@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: chess960wz
+Version: 0.1.0
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: pygame==2.6.1
+Requires-Dist: pandas==2.2.3
+Requires-Dist: matplotlib==3.9.2
+Provides-Extra: dev
+Requires-Dist: pytest==9.0.2; extra == "dev"
+Requires-Dist: hypothesis==6.112.0; extra == "dev"
+Requires-Dist: coverage[toml]==7.6.1; extra == "dev"
+Requires-Dist: ruff==0.6.9; extra == "dev"
+Requires-Dist: chess==1.11.2; extra == "dev"
+Requires-Dist: pytest-cov==5.0.0; extra == "dev"
+Dynamic: license-file

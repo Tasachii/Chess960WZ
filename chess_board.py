@@ -1,23 +1,32 @@
-import pygame
+"""Pygame render layer for the chess board.
+
+All rules/state logic lives in :class:`chess_core.board.CoreBoard`; ``ChessBoard``
+subclasses it and adds only the Pygame ``screen``/font/drawing code. The board
+state, move generation, check/checkmate/stalemate, Chess960 castling and en
+passant are inherited from the (headless, tested) core. ``setup_board`` keeps the
+auxiliary ``squares`` grid in sync via the core's ``_on_square_set`` hook.
+"""
 import math
+from typing import List, Optional, Tuple
+
+import pygame
+
+from chess_core.board import CoreBoard
+from chess_piece import make_piece
 from constants import *
 from square import Square
-from chess_piece import make_piece
+
+Coord = Tuple[int, int]
 
 
-class ChessBoard:
-    def __init__(self, screen):
+class ChessBoard(CoreBoard):
+    def __init__(self, screen) -> None:
+        # Build pure-core state, injecting the render-piece factory so pieces
+        # carry images.
+        super().__init__(piece_factory=make_piece)
+
         self.screen = screen
         self.squares = [[Square(col, row) for row in range(8)] for col in range(8)]
-        self.white_pieces = []
-        self.black_pieces = []
-        self.captured_white = []
-        self.captured_black = []
-        self.notation_log = []
-        self.last_move = None
-
-        self.white_ep = (100, 100)
-        self.black_ep = (100, 100)
         self.playing_as_white = True
 
         self.square_size = 90
@@ -40,49 +49,46 @@ class ChessBoard:
             self.medium_font = pygame.font.Font('freesansbold.ttf', 40)
             self.big_font = pygame.font.Font('freesansbold.ttf', 50)
             self.small_font = pygame.font.Font('freesansbold.ttf', 14)
-        except:
+        except pygame.error:
             self.font = pygame.font.SysFont('Arial', 20)
             self.medium_font = pygame.font.SysFont('Arial', 40)
             self.big_font = pygame.font.SysFont('Arial', 50)
             self.small_font = pygame.font.SysFont('Arial', 14)
 
-    def setup_board(self, back_rank=None):
-        self.white_pieces = []
-        self.black_pieces = []
-        self.captured_white = []
-        self.captured_black = []
-        self.notation_log = []
-        self.white_ep = (100, 100)
-        self.black_ep = (100, 100)
-        self.last_move = None
+    def _on_square_set(self, col: int, row: int, piece) -> None:
+        """Keep the auxiliary square grid mirror in sync with the core."""
+        self.squares[col][row].piece = piece
 
-        # Reset square grid sync
+    # --- Coordinate helpers (A17) ------------------------------------------
+    # to_screen / from_screen are the single source of truth for the
+    # board<->pixel mapping (and board flipping), replacing the per-method
+    # ``7 - x if flipped else x`` duplication across every draw_* and the
+    # mouse hit-test.
+
+    def to_screen(self, col: int, row: int, flipped: bool = False) -> tuple[int, int]:
+        """Top-left screen pixel of the cell holding board square ``(col, row)``."""
+        sx = 7 - col if flipped else col
+        sy = row if flipped else 7 - row
+        return (BOARD_MARGIN + sx * self.square_size,
+                BOARD_MARGIN + sy * self.square_size)
+
+    def from_screen(self, x: int, y: int, flipped: bool = False) -> Optional[Coord]:
+        """Board ``(col, row)`` under screen pixel ``(x, y)``, or ``None`` if off-board."""
+        vx = (x - BOARD_MARGIN) // self.square_size
+        vy = (y - BOARD_MARGIN) // self.square_size
+        if vx < 0 or vx >= 8 or vy < 0 or vy >= 8:
+            return None
+        col = 7 - vx if flipped else vx
+        row = vy if flipped else 7 - vy
+        return (col, row)
+
+    def setup_board(self, back_rank: Optional[List[str]] = None) -> None:
+        # Reset square grid sync, then let the core rebuild the pieces (which
+        # repopulates the grid via _on_square_set).
         for col in range(8):
             for row in range(8):
                 self.squares[col][row].piece = None
-
-        if back_rank is None:
-            back_rank = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook']
-
-        # Setup pieces and sync with square grid
-        for col, pt in enumerate(back_rank):
-            wp = make_piece(pt, WHITE, (col, 0), self)
-            bp = make_piece(pt, BLACK, (col, 7), self)
-            self.white_pieces.append(wp)
-            self.black_pieces.append(bp)
-            self.squares[col][0].piece = wp
-            self.squares[col][7].piece = bp
-
-        for col in range(8):
-            wp = make_piece('pawn', WHITE, (col, 1), self)
-            bp = make_piece('pawn', BLACK, (col, 6), self)
-            self.white_pieces.append(wp)
-            self.black_pieces.append(bp)
-            self.squares[col][1].piece = wp
-            self.squares[col][6].piece = bp
-
-    def add_notation(self, text):
-        self.notation_log.append(text)
+        super().setup_board(back_rank)
 
     def draw_common_menu_elements(self):
         self.screen.fill(self.menu_bg_top)
@@ -93,21 +99,18 @@ class ChessBoard:
                 if (row + col) % 2 == 0:
                     pygame.draw.rect(self.screen, self.menu_grid, pygame.Rect(col * sq, row * sq, sq, sq))
 
-    def draw_board(self, flipped=False):
+    def draw_board(self, flipped: bool = False) -> None:
         self.draw_common_menu_elements()
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
+        start_x = BOARD_MARGIN
+        start_y = BOARD_MARGIN
 
-        pygame.draw.line(self.screen, GOLD, (800, 0), (800, 900), 2)
-        pygame.draw.line(self.screen, GOLD, (0, 800), (800, 800), 2)
+        pygame.draw.line(self.screen, GOLD, (BOARD_PX, 0), (BOARD_PX, HEIGHT), 2)
+        pygame.draw.line(self.screen, GOLD, (0, BOARD_PX), (BOARD_PX, BOARD_PX), 2)
 
         for row in range(8):
             for col in range(8):
-                screen_row = row if flipped else 7 - row
-                screen_col = 7 - col if flipped else col
-                rect = [start_x + screen_col * self.square_size, start_y + screen_row * self.square_size,
-                        self.square_size, self.square_size]
+                px, py = self.to_screen(col, row, flipped)
+                rect = [px, py, self.square_size, self.square_size]
 
                 if (row + col) % 2 == 0:
                     pygame.draw.rect(self.screen, self.color_dark, rect)
@@ -122,14 +125,11 @@ class ChessBoard:
             highlight_surface.fill((255, 255, 0, 70))
             for pos in self.last_move:
                 if pos:
-                    sx = 7 - pos[0] if flipped else pos[0]
-                    sy = pos[1] if flipped else 7 - pos[1]
-                    self.screen.blit(highlight_surface,
-                                     (start_x + sx * self.square_size, start_y + sy * self.square_size))
+                    self.screen.blit(highlight_surface, self.to_screen(pos[0], pos[1], flipped))
 
         try:
             lf = pygame.font.Font('freesansbold.ttf', 16)
-        except:
+        except pygame.error:
             lf = pygame.font.SysFont('Arial', 16)
 
         for i in range(8):
@@ -137,13 +137,13 @@ class ChessBoard:
             fl = chr(65 + fl_idx)
             x = start_x + i * self.square_size + self.square_size // 2 - 5
             self.screen.blit(lf.render(fl, True, CREAM_WHITE), (x, 10))
-            self.screen.blit(lf.render(fl, True, CREAM_WHITE), (x, 770))
+            self.screen.blit(lf.render(fl, True, CREAM_WHITE), (x, BOARD_PX - 30))
 
             rk_val = i + 1 if flipped else 8 - i
             rk = str(rk_val)
             y = start_y + i * self.square_size + self.square_size // 2 - 5
             self.screen.blit(lf.render(rk, True, CREAM_WHITE), (10, y))
-            self.screen.blit(lf.render(rk, True, CREAM_WHITE), (770, y))
+            self.screen.blit(lf.render(rk, True, CREAM_WHITE), (BOARD_PX - 30, y))
 
     def draw_menu(self):
         self.draw_common_menu_elements()
@@ -152,7 +152,7 @@ class ChessBoard:
             sub_font = pygame.font.Font('freesansbold.ttf', 20)
             btn_font = pygame.font.Font('freesansbold.ttf', 36)
             info_font = pygame.font.Font('freesansbold.ttf', 15)
-        except:
+        except pygame.error:
             title_font = sub_font = btn_font = info_font = pygame.font.SysFont('Arial', 32)
 
         for dx, dy, alpha in [(6, 6, 60), (4, 4, 100), (2, 2, 150)]:
@@ -199,9 +199,7 @@ class ChessBoard:
 
         return white_btn, black_btn, quit_btn
 
-    def draw_status_area(self, turn_step, white_time=0, black_time=0):
-        status_panel_x = 800
-
+    def draw_status_area(self, turn_step: int, white_time: float = 0, black_time: float = 0) -> None:
         turn_text = "White's Turn" if turn_step < 2 else "Black's Turn"
         ind_color = WHITE if turn_step < 2 else BLACK
         txt_color = BLACK if turn_step < 2 else WHITE
@@ -211,7 +209,7 @@ class ChessBoard:
         try:
             tf = pygame.font.Font('freesansbold.ttf', 28)
             timef = pygame.font.Font('freesansbold.ttf', 32)
-        except:
+        except pygame.error:
             tf = pygame.font.SysFont('Arial', 28)
             timef = pygame.font.SysFont('Arial', 32)
 
@@ -236,7 +234,7 @@ class ChessBoard:
         b_score = sum(piece_values.get(p.piece_type, 0) for p in self.black_pieces)
         diff = w_score - b_score
 
-        bar_x, bar_y, bar_w, bar_h = 530, 845, 230, 10
+        bar_x, bar_y, bar_w, bar_h = MATERIAL_BAR
         pygame.draw.rect(self.screen, (30, 30, 30), [bar_x, bar_y, bar_w, bar_h])
         max_adv = 15
         clamped_diff = max(min(diff, max_adv), -max_adv)
@@ -252,35 +250,27 @@ class ChessBoard:
             txt = self.small_font.render(f"+{-diff}", True, (50, 50, 50))
             self.screen.blit(txt, (bar_x + bar_w + 10, bar_y - 3))
 
-        w_res = pygame.Rect(status_panel_x + 30, 700, 170, 40)
+        w_res = pygame.Rect(*RESIGN_WHITE_RECT)
         pygame.draw.rect(self.screen, LIGHT_GRAY, w_res, border_radius=8)
         pygame.draw.rect(self.screen, DARK_RED, w_res, 2, border_radius=8)
         w_txt = self.small_font.render("White Resign", True, DARK_RED)
         self.screen.blit(w_txt, w_txt.get_rect(center=w_res.center))
 
-        b_res = pygame.Rect(status_panel_x + 210, 700, 170, 40)
+        b_res = pygame.Rect(*RESIGN_BLACK_RECT)
         pygame.draw.rect(self.screen, LIGHT_GRAY, b_res, border_radius=8)
         pygame.draw.rect(self.screen, DARK_RED, b_res, 2, border_radius=8)
         b_txt = self.small_font.render("Black Resign", True, DARK_RED)
         self.screen.blit(b_txt, b_txt.get_rect(center=b_res.center))
 
-        quit_btn = pygame.Rect(status_panel_x + 30, 760, 350, 50)
+        quit_btn = pygame.Rect(*STATUS_QUIT_RECT)
         pygame.draw.rect(self.screen, (200, 50, 50), quit_btn, border_radius=8)
         pygame.draw.rect(self.screen, GOLD, quit_btn, 2, border_radius=8)
         q_txt = self.font.render("Quit", True, CREAM_WHITE)
         self.screen.blit(q_txt, q_txt.get_rect(center=quit_btn.center))
 
-    def draw_pieces(self, turn_step, selection, flipped=False):
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
-
+    def draw_pieces(self, turn_step: int, selection: int, flipped: bool = False) -> None:
         for i, piece in enumerate(self.white_pieces):
-            x, y = piece.position
-            sx = 7 - x if flipped else x
-            sy = y if flipped else 7 - y
-            screen_x = start_x + sx * self.square_size
-            screen_y = start_y + sy * self.square_size
+            screen_x, screen_y = self.to_screen(piece.position[0], piece.position[1], flipped)
             ox = (self.square_size - piece.image.get_width()) // 2
             oy = (self.square_size - piece.image.get_height()) // 2
             self.screen.blit(piece.image, (screen_x + ox, screen_y + oy))
@@ -290,11 +280,7 @@ class ChessBoard:
                                  border_radius=5)
 
         for i, piece in enumerate(self.black_pieces):
-            x, y = piece.position
-            sx = 7 - x if flipped else x
-            sy = y if flipped else 7 - y
-            screen_x = start_x + sx * self.square_size
-            screen_y = start_y + sy * self.square_size
+            screen_x, screen_y = self.to_screen(piece.position[0], piece.position[1], flipped)
             ox = (self.square_size - piece.image.get_width()) // 2
             oy = (self.square_size - piece.image.get_height()) // 2
             self.screen.blit(piece.image, (screen_x + ox, screen_y + oy))
@@ -311,7 +297,7 @@ class ChessBoard:
         try:
             title_f = pygame.font.Font('freesansbold.ttf', 18)
             move_f = pygame.font.Font('freesansbold.ttf', 14)
-        except:
+        except pygame.error:
             title_f = pygame.font.SysFont('Arial', 18)
             move_f = pygame.font.SysFont('Arial', 14)
 
@@ -338,27 +324,18 @@ class ChessBoard:
     def draw_captured(self):
         self.draw_notation_panel()
 
-    def draw_valid_moves(self, valid_moves, turn_step, flipped=False):
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
-
+    def draw_valid_moves(self, valid_moves: List[Coord], turn_step: int, flipped: bool = False) -> None:
         color = RED if turn_step < 2 else BLUE
         for x, y in valid_moves:
-            sx = 7 - x if flipped else x
-            sy = y if flipped else 7 - y
-            cx = start_x + sx * self.square_size + self.square_size // 2
-            cy = start_y + sy * self.square_size + self.square_size // 2
+            px, py = self.to_screen(x, y, flipped)
+            cx = px + self.square_size // 2
+            cy = py + self.square_size // 2
             surf = pygame.Surface((20, 20), pygame.SRCALPHA)
             c = color if isinstance(color, tuple) else pygame.Color(color)
             pygame.draw.circle(surf, (*c[:3], 150), (10, 10), 10)
             self.screen.blit(surf, (cx - 10, cy - 10))
 
-    def draw_check(self, counter, flipped=False):
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
-
+    def draw_check(self, counter: int, flipped: bool = False) -> bool:
         check = False
         pulse = 4 + abs(math.sin(counter * 0.2) * 3)
 
@@ -370,11 +347,7 @@ class ChessBoard:
                 for op in opponent:
                     if king.get_pos() in op.get_attack_squares():
                         check = True
-                        x, y = king.position
-                        sx = 7 - x if flipped else x
-                        sy = y if flipped else 7 - y
-                        screen_x = start_x + sx * self.square_size
-                        screen_y = start_y + sy * self.square_size
+                        screen_x, screen_y = self.to_screen(king.position[0], king.position[1], flipped)
                         pygame.draw.rect(self.screen, ring_color,
                                          [screen_x - pulse, screen_y - pulse, self.square_size + pulse * 2,
                                           self.square_size + pulse * 2],
@@ -382,7 +355,7 @@ class ChessBoard:
         return check
 
     def draw_promotion(self, color, turn_step):
-        panel = pygame.Rect(850, 200, 300, 450)
+        panel = pygame.Rect(*PROMO_PANEL)
         pygame.draw.rect(self.screen, (45, 45, 60), panel, border_radius=15)
         pygame.draw.rect(self.screen, GOLD, panel, 4, border_radius=15)
         title = self.medium_font.render("Promote", True, CREAM_WHITE)
@@ -391,7 +364,7 @@ class ChessBoard:
 
         for i, pt in enumerate(PROMOTION_PIECES):
             piece = make_piece(pt, color, (0, 0), self)
-            opt = pygame.Rect(panel.x + 50, panel.y + 80 + i * 90, 200, 70)
+            opt = pygame.Rect(panel.x + 50, panel.y + PROMO_OPTION_TOP + i * PROMO_OPTION_H, 200, 70)
             bg = LIGHT_BLUE if i == self.highlight_promotion_option else CREAM_WHITE
             pygame.draw.rect(self.screen, bg, opt, border_radius=10)
             pygame.draw.rect(self.screen, GOLD, opt, 2, border_radius=10)
@@ -399,176 +372,24 @@ class ChessBoard:
             nm = self.font.render(pt.capitalize(), True, BLACK)
             self.screen.blit(nm, nm.get_rect(midleft=(opt.x + 100, opt.centery)))
 
-    def draw_castling(self, castling_moves, turn_step, flipped=False):
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
-
+    def draw_castling(self, castling_moves, turn_step: int, flipped: bool = False) -> None:
         color = RED if turn_step < 2 else BLUE
+        half = self.square_size // 2
         for king_pos, rook_pos in castling_moves:
-            kx, ky = king_pos
-            rx, ry = rook_pos
+            kpx, kpy = self.to_screen(king_pos[0], king_pos[1], flipped)
+            rpx, rpy = self.to_screen(rook_pos[0], rook_pos[1], flipped)
 
-            ksx = 7 - kx if flipped else kx
-            ksy = ky if flipped else 7 - ky
-            rsx = 7 - rx if flipped else rx
-            rsy = ry if flipped else 7 - ry
-
-            kcx = start_x + ksx * self.square_size + self.square_size // 2
-            kcy = start_y + ksy * self.square_size + self.square_size // 2
-            rcx = start_x + rsx * self.square_size + self.square_size // 2
-            rcy = start_y + rsy * self.square_size + self.square_size // 2
+            kcx = kpx + half
+            kcy = kpy + half
+            rcx = rpx + half
+            rcy = rpy + half
 
             pygame.draw.line(self.screen, color, (kcx, kcy + 20), (rcx, rcy + 20), 3)
             pygame.draw.circle(self.screen, color, (kcx, kcy + 20), 10)
             pygame.draw.circle(self.screen, color, (rcx, rcy + 20), 10)
 
-    def get_square_under_mouse(self, pos, flipped=False):
-        margin = (800 - (8 * self.square_size)) // 2
-        start_x = margin
-        start_y = margin
+    def get_square_under_mouse(self, pos: Coord, flipped: bool = False) -> Optional[Coord]:
+        return self.from_screen(pos[0], pos[1], flipped)
 
-        vx = (pos[0] - start_x) // self.square_size
-        vy = (pos[1] - start_y) // self.square_size
-
-        if vx < 0 or vx >= 8 or vy < 0 or vy >= 8:
-            return None
-
-        if flipped:
-            x = 7 - vx
-            y = vy
-        else:
-            x = vx
-            y = 7 - vy
-
-        return (x, y)
-
-    def is_king_in_check(self, color):
-        king = next((p for p in (self.white_pieces if color == WHITE else self.black_pieces) if p.piece_type == 'king'),
-                    None)
-        if not king: return False
-        opp = self.black_pieces if color == WHITE else self.white_pieces
-        # use get_attack_squares so pawn diagonals are counted even on empty squares
-        return any(king.get_pos() in p.get_attack_squares() for p in opp)
-
-    def is_square_under_attack(self, position, attacking_color):
-        pieces = self.white_pieces if attacking_color == WHITE else self.black_pieces
-        # use get_attack_squares for the same reason as is_king_in_check
-        return any(position in p.get_attack_squares() for p in pieces)
-
-    def _has_legal_moves(self, color):
-        # Ghost pawn fix correctly integrated for simulations
-        pieces = self.white_pieces if color == WHITE else self.black_pieces
-        for p in pieces:
-            orig = list(p.position)
-            for m in p.get_valid_moves():
-                cap_pos = m
-                if p.piece_type == 'pawn':
-                    if p.color == WHITE and tuple(m) == self.black_ep:
-                        cap_pos = (m[0], m[1] - 1)
-                    elif p.color == BLACK and tuple(m) == self.white_ep:
-                        cap_pos = (m[0], m[1] + 1)
-
-                cap = self.get_piece_at_position(cap_pos)
-                if cap:
-                    if cap.color == WHITE:
-                        self.white_pieces.remove(cap)
-                    else:
-                        self.black_pieces.remove(cap)
-
-                p.position = list(m)
-                safe = not self.is_king_in_check(color)
-                p.position = orig
-
-                if cap:
-                    if cap.color == WHITE:
-                        self.white_pieces.append(cap)
-                    else:
-                        self.black_pieces.append(cap)
-
-                if safe: return True
-        return False
-
-    def is_checkmate(self, color):
-        return self.is_king_in_check(color) and not self._has_legal_moves(color)
-
-    def is_stalemate(self, color):
-        return not self.is_king_in_check(color) and not self._has_legal_moves(color)
-
-    def check_castling(self, color):
-        moves = []
-        if self.is_king_in_check(color):
-            return moves
-
-        pieces = self.white_pieces if color == WHITE else self.black_pieces
-        opp_color = BLACK if color == WHITE else WHITE
-        king = next((p for p in pieces if p.piece_type == 'king'), None)
-        rooks = [p for p in pieces if p.piece_type == 'rook']
-
-        if not king or king.has_moved:
-            return moves
-
-        kx, ky = king.position
-
-        for rook in rooks:
-            if rook.has_moved: continue
-
-            rx, ry = rook.position
-            is_kingside = rx > kx
-
-            # Chess960 castling target rule
-            king_dest_x = 6 if is_kingside else 2
-            rook_dest_x = 5 if is_kingside else 3
-
-            king_dest = (king_dest_x, ky)
-            rook_dest = (rook_dest_x, ky)
-
-            min_x = min(kx, rx, king_dest_x, rook_dest_x)
-            max_x = max(kx, rx, king_dest_x, rook_dest_x)
-            path_clear = True
-
-            all_pieces = self.white_pieces + self.black_pieces
-            for x in range(min_x, max_x + 1):
-                if x == kx or x == rx: continue
-                if any(p.position == [x, ky] for p in all_pieces):
-                    path_clear = False
-                    break
-
-            if not path_clear: continue
-
-            king_min_x = min(kx, king_dest_x)
-            king_max_x = max(kx, king_dest_x)
-            safe_path = True
-
-            for x in range(king_min_x, king_max_x + 1):
-                if self.is_square_under_attack((x, ky), opp_color):
-                    safe_path = False
-                    break
-
-            if not safe_path: continue
-            moves.append((king_dest, rook_dest))
-
-        return moves
-
-    def get_piece_at_position(self, position):
-        for p in self.white_pieces + self.black_pieces:
-            if tuple(p.position) == tuple(position):
-                return p
-        return None
-
-    def get_all_piece_positions(self):
-        return [tuple(p.position) for p in self.white_pieces + self.black_pieces]
-
-    def get_piece_positions(self, color):
-        pieces = self.white_pieces if color == WHITE else self.black_pieces
-        return [tuple(p.position) for p in pieces]
-
-    def get_opponent_positions(self, color):
-        pieces = self.black_pieces if color == WHITE else self.white_pieces
-        return [tuple(p.position) for p in pieces]
-
-    def get_en_passant_square(self, color):
-        return self.white_ep if color == WHITE else self.black_ep
-
-    def set_playing_side(self, as_white):
+    def set_playing_side(self, as_white: bool) -> None:
         self.playing_as_white = as_white

@@ -1,6 +1,9 @@
+"""Board-square model: a single (col, row) cell, its color, and its occupant."""
 from constants import WHITE, BLACK
 
+
 class Square:
+    """One square of the 8x8 board, tracking its color and the piece on it."""
     def __init__(self, col, row):
         self.col = col
         self.row = row

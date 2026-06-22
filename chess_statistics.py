@@ -132,7 +132,7 @@ class ChessStatistics:
             if metric == 'dependency':
                 piece_counts = df['piece_type'].value_counts()
 
-                # แยกการตั้งค่า Text ด้านนอก และ % ด้านใน
+                # Style the outer labels and the inner percentages separately.
                 patches, texts, autotexts = plt.pie(
                     piece_counts,
                     labels=piece_counts.index,
@@ -141,11 +141,11 @@ class ChessStatistics:
                     colors=plt.cm.Pastel1.colors
                 )
 
-                # Label ด้านนอกสีขาว
+                # Outer labels in white.
                 for text in texts:
                     text.set_color('white')
                     text.set_fontsize(12)
-                # % ด้านในสีดำหนา
+                # Inner percentages in bold black.
                 for autotext in autotexts:
                     autotext.set_color('black')
                     autotext.set_weight('bold')
@@ -195,7 +195,7 @@ class ChessStatistics:
                 colors_map = {'white': '#F5F5DC', 'black': '#FFD700', 'draw': '#B0C4DE'}
                 pie_colors = [colors_map.get(w, '#aaaaaa') for w in wins.index]
 
-                # แยกการตั้งค่า Text ด้านนอก และ % ด้านใน
+                # Style the outer labels and the inner percentages separately.
                 patches, texts, autotexts = plt.pie(
                     wins,
                     labels=wins.index,
@@ -204,11 +204,11 @@ class ChessStatistics:
                     colors=pie_colors
                 )
 
-                # Label ด้านนอกสีขาว
+                # Outer labels in white.
                 for text in texts:
                     text.set_color('white')
                     text.set_fontsize(12)
-                # % ด้านในสีดำหนา
+                # Inner percentages in bold black.
                 for autotext in autotexts:
                     autotext.set_color('black')
                     autotext.set_weight('bold')

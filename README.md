@@ -94,13 +94,16 @@ python3 main.py
 
 ## Known Bugs
 
-- None known at the time of this release. (Earlier versions had a king-selection lock and an incomplete pawn-attack rule for castling — both fixed in this build.)
+- The starting-position FEN castling field was previously hardcoded to `KQkq`, which is only unambiguous when the rooks are the outermost back-rank pieces. This is now **fixed**: the generator emits a proper Shredder-FEN castling field derived from the actual rook files (white uppercase, black lowercase; e.g. back-rank `nrkrbqbn` -> `DBdb`), validated against `python-chess` in chess960 mode.
+- Earlier versions had a king-selection lock and an incomplete pawn-attack rule for castling — both fixed in prior builds.
 
 ---
 
 ## Unfinished Works
 
-- None
+- **Draw rules:** only the 50-move rule and stalemate are detected. Threefold-repetition and insufficient-material draws (K vs K, K+minor vs K, KB vs KB same color) are not yet implemented.
+- **Test suite:** Phase 1 (generator property/completeness/uniformity tests, the FEN fix, and a CI harness) is in place; the generator is at ~100% coverage. The rule-engine, perft (vs `python-chess`), and PGN round-trip suites are deferred to Phase 2, which first requires extracting a UI-free chess core so the rules can be exercised without a display.
+- **SP-number mapping:** there is no Scharnagl SP-number <-> position mapping yet, so a specific position (e.g. "#518") cannot be named or seeded.
 
 ---
 

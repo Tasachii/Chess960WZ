@@ -1,3 +1,4 @@
+"""Entry point: initialize pygame and run the Chess960WZ game loop."""
 import pygame
 from chess_game import ChessGame
 
